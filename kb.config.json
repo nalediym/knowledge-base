@@ -1,0 +1,23 @@
+{
+  "$schema": "./kb.config.schema.json",
+  "name": "my-project",
+  "version": 1,
+  "sources": {
+    "include": ["docs/**/*.md", "README.md", "CLAUDE.md", "src/**/*.ts"],
+    "exclude": ["node_modules/**", "dist/**", ".git/**"],
+    "formats": ["md", "txt", "py", "ts", "rs", "json", "yaml", "csv"]
+  },
+  "compile": {
+    "concept_threshold": 2,
+    "max_context_tokens": 200000,
+    "incremental": true,
+    "batch_size": 10
+  },
+  "provenance": {
+    "required": true,
+    "method": "chunk",
+    "chunk_strategy": "heading"
+  },
+  "obsidian": false,
+  "output_dir": "kb/output"
+}

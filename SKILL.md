@@ -94,20 +94,43 @@ Create `kb/wiki/index.md` with:
 <!-- auto-populated by query mode -->
 ```
 
-Create `kb/.kb-manifest.json`:
+Create `kb/.kb-manifest.json` (runtime state, tracks what's been ingested):
 ```json
 {
   "version": 1,
   "created": "[ISO timestamp]",
   "last_compiled": null,
-  "sources": [],
-  "config": {
-    "obsidian": false,
-    "max_context_tokens": 200000,
-    "provenance_required": true
-  }
+  "sources": []
 }
 ```
+
+If no `kb.config.json` exists in the project root, create one from defaults:
+```json
+{
+  "name": "[project-name]",
+  "version": 1,
+  "sources": {
+    "include": ["**/*.md", "**/*.txt"],
+    "exclude": ["node_modules/**", "dist/**", ".git/**", "kb/**"],
+    "formats": ["md", "txt", "py", "ts", "rs", "json", "yaml", "csv"]
+  },
+  "compile": {
+    "concept_threshold": 2,
+    "max_context_tokens": 200000,
+    "incremental": true,
+    "batch_size": 10
+  },
+  "provenance": {
+    "required": true,
+    "method": "chunk",
+    "chunk_strategy": "heading"
+  },
+  "obsidian": false,
+  "output_dir": "kb/output"
+}
+```
+
+See `example/` directory in the repo for a complete before/after demonstration.
 
 ### Obsidian Integration (Optional)
 
@@ -141,7 +164,12 @@ For each ingested source:
    shasum -a 256 "$file" | cut -d' ' -f1
    ```
 
-2. **Create source page** in `kb/wiki/sources/`:
+2. **Chunk the source** into logical sections (headings, function boundaries,
+   paragraph breaks). Assign each chunk a stable ID: `{source-slug}#chunk-{N}`.
+   Chunk IDs are sequential within a source and survive minor edits. Store chunks
+   in the source page for traceability.
+
+3. **Create source page** in `kb/wiki/sources/`:
    ```markdown
    # [Source Title]
 
@@ -149,13 +177,21 @@ For each ingested source:
    > **Ingested:** [timestamp]
    > **Hash:** [sha256]
    > **Status:** fresh | stale | unverified
+   > **Chunks:** [N]
 
    ## Summary
    [2-3 paragraph summary of what this source contains]
 
+   ## Chunks
+   ### chunk-1: [section heading or first line]
+   > [verbatim excerpt, 1-5 sentences]
+
+   ### chunk-2: [section heading or first line]
+   > [verbatim excerpt, 1-5 sentences]
+
    ## Key Claims
-   - [claim 1] — line [N]
-   - [claim 2] — line [N]
+   - [claim 1] — chunk-1
+   - [claim 2] — chunk-3
 
    ## Related Concepts
    - [concept-name](../concepts/concept-name.md)
@@ -188,7 +224,7 @@ Glob: kb/wiki/sources/*.md
 ### Step 2: Extract concepts
 
 For each source, identify distinct concepts (techniques, tools, patterns, decisions).
-A concept is a **reusable idea** that appears in 1+ sources.
+A concept is a **reusable idea** that appears in 2+ sources. Skip singletons.
 
 Create concept pages in `kb/wiki/concepts/`:
 
@@ -197,21 +233,22 @@ Create concept pages in `kb/wiki/concepts/`:
 
 > **First seen in:** [source](../sources/source.md)
 > **Also referenced by:** [source2](../sources/source2.md), [source3](../sources/source3.md)
-> **Confidence:** high | medium | low (based on source agreement)
+> **Confidence:** high | medium | low (based on source count and agreement)
 
 ## Definition
 [1-2 sentences — what is this concept]
 
 ## Details
-[expanded explanation, always citing source:line]
+[expanded explanation, citing source#chunk-N for every factual claim]
 
 ## Connections
 - Related to: [other-concept](other-concept.md) — [why]
 - Contradicts: [concept](concept.md) — [how, per which sources]
 - Prerequisite for: [concept](concept.md)
 
-## Raw Sources
-- [source.md](../sources/source.md) — lines [N-M]
+## Provenance
+- [source.md](../sources/source.md) — chunk-1, chunk-3
+- [source2.md](../sources/source2.md) — chunk-7
 ```
 
 ### Step 3: Build index
@@ -231,10 +268,11 @@ If A links to B, B must link back to A.
 ### Hallucination Guard
 
 During compilation:
-- Every factual claim MUST include `— [source.md](path):line [N]`
-- If two sources contradict, flag it explicitly with both citations
+- Every factual claim MUST cite `— [source.md](path)#chunk-N`
+- If two sources contradict, flag it explicitly with both chunk citations
 - If a claim has only one source and is surprising, mark confidence as `low`
-- NEVER synthesize claims that aren't in any source — that's hallucination
+- NEVER synthesize claims that aren't in any source chunk — that's hallucination
+- Generated content MUST be clearly marked (see Phase 7: Edit Protection)
 
 ### Token Budget
 
@@ -266,7 +304,7 @@ Answer questions against the wiki.
 
 ### Sources
 - [concept.md](path) — [relevant excerpt]
-- [source.md](path):line [N] — [original claim]
+- [source.md](path)#chunk-N — [original claim from chunk]
 
 ### Confidence
 [high/medium/low] — based on [N] sources, [agreement level]
@@ -298,7 +336,7 @@ Health check the KB. Run all checks, report as a scorecard.
 | **Broken links** | Links to pages that don't exist |
 | **Stale sources** | Sources whose raw file hash has changed since ingestion |
 | **Thin concepts** | Concept pages with < 100 words or only 1 source |
-| **Missing provenance** | Claims without source citations |
+| **Missing provenance** | Claims without chunk citations |
 | **Contradictions** | Concepts with conflicting claims from different sources |
 | **Index drift** | Index doesn't match actual wiki contents |
 | **Token bloat** | Wiki exceeds context budget |
@@ -345,6 +383,62 @@ Render wiki content in visual formats.
 After generating output, if `config.obsidian` is true:
 ```bash
 open "obsidian://open?vault=$(basename $(dirname $KB_ROOT))&file=kb/output/[filename]"
+```
+
+---
+
+## Phase 7: EDIT PROTECTION
+
+Generated and human-authored content coexist. Compile must never clobber human work.
+
+### Content zones
+
+Every wiki page has two zones:
+
+1. **Generated zone** (above `<!-- human notes below -->` marker):
+   - Written and overwritten by compile
+   - Includes: Summary, Chunks, Key Claims, Definition, Details, Provenance
+   - Users should NOT edit here (edits will be lost on recompile)
+
+2. **Human zone** (below `<!-- human notes below -->` marker):
+   - Never touched by compile
+   - Users add corrections, context, opinions, links
+   - If this zone contains a `**REVIEWED**` tag, the concept is considered verified
+
+### Compile behavior
+
+- If a page has no `<!-- human notes below -->` marker, append one at the end
+- Regenerate everything ABOVE the marker
+- Leave everything BELOW the marker untouched
+- If a source page's hash hasn't changed since last compile, skip regeneration
+
+### Conflict handling
+
+- If a human note contradicts a generated claim, flag it in lint (not auto-resolve)
+- If a concept page is marked `**REVIEWED**`, compile warns before regenerating
+  and preserves the reviewed status
+- Deleted source pages: if a raw source is removed, compile marks its source page
+  as `**Status:** orphaned` but does NOT delete it (human notes may exist)
+
+### Example page with both zones
+
+```markdown
+# JWT Authentication
+
+> **First seen in:** [auth-design](../sources/auth-design.md)
+> **Confidence:** high
+
+## Definition
+[generated content...]
+
+## Provenance
+[generated content...]
+
+<!-- human notes below -->
+
+## My Notes
+The 24h expiry is too long for admin endpoints. We should use 1h for /admin/*.
+**REVIEWED** — verified against prod config 2026-04-01
 ```
 
 ---

@@ -82,12 +82,13 @@ kb/
 
 ## Design principles
 
-- **Provenance first** — every factual claim cites `source.md:line N`. If two sources contradict, both are cited. Single-source surprising claims are marked low confidence. No orphan claims.
+- **Chunk-based provenance** — every factual claim cites `source.md#chunk-N`. Sources are split into logical chunks (by heading, function boundary, or paragraph). Chunk IDs are stable across minor edits, unlike line numbers. If two sources contradict, both chunks are cited. Single-source surprising claims are marked low confidence.
 - **Filesystem is source of truth** — works with any editor. Obsidian is an optional viewer, not a dependency.
 - **Standard markdown** — no `[[wikilinks]]`, no proprietary syntax.
 - **Hallucination guard** — the LLM cannot synthesize claims absent from sources. Every concept page traces back to raw source files with line numbers.
 - **Staleness detection** — file hashes in the manifest detect when raw sources change. Compile also flags sources older than 30 days. Lint catches hash drift, broken links, and index-to-wiki mismatches.
 - **Token-aware** — compile estimates token usage before starting. If the wiki exceeds `max_context_tokens` (default 200K), it compiles in batches and warns.
+- **Edit protection** — every wiki page has a generated zone (rewritten on compile) and a human zone (never touched). Add notes, corrections, and `**REVIEWED**` tags below the `<!-- human notes below -->` marker. Compile will never clobber your work.
 
 ## Obsidian (optional)
 
@@ -136,6 +137,20 @@ Pairs well with other Claude Code skills:
 | `/cleanup-mode` | Run `lint` as part of session cleanup |
 | `/gstack-learn` | Sync learnings into KB as sources |
 | `/gstack-retro` | Retro findings become KB sources |
+
+## Configuration
+
+Drop a `kb.config.json` in your project root to customize behavior. `init` creates one from defaults if missing. See [kb.config.json](kb.config.json) for the full schema.
+
+Key settings: `compile.concept_threshold` (min sources per concept, default 2), `provenance.method` (`chunk` or `line`), `compile.incremental` (skip unchanged sources).
+
+## Example
+
+The `example/` directory shows a complete before/after:
+- `example/raw/` — two source docs (auth design + API guidelines)
+- `example/kb/wiki/sources/` — compiled source pages with chunks
+- `example/kb/wiki/concepts/` — extracted concepts (jwt-authentication, rate-limiting) with chunk provenance
+- `example/kb/wiki/index.md` — auto-generated index with Mermaid concept graph
 
 ## Prior art
 
