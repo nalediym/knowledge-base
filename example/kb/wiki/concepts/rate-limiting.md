@@ -10,14 +10,17 @@ Tiered request throttling: 5 req/min for auth, 100 req/min for public,
 
 ## Details
 Auth endpoints (login, register, refresh) are limited to 5 requests per minute
-per IP — api-guidelines#chunk-2, auth-design#chunk-3. Public endpoints allow
+per IP — [api-guidelines](../sources/api-guidelines.md)#c-eec47ebf,
+[auth-design](../sources/auth-design.md)#c-fcba1172. Public endpoints allow
 100 req/min per IP. Authenticated endpoints allow 1000 req/min per user —
-api-guidelines#chunk-2. The auth rate limit is the strictest tier, shared
-between both docs.
+[api-guidelines](../sources/api-guidelines.md)#c-eec47ebf. The auth rate limit
+is the strictest tier, shared between both docs.
 
 ## Connections
 - Related to: [jwt-authentication](jwt-authentication.md) — rate limiting protects the token issuance flow
 
 ## Provenance
-- [auth-design.md](../sources/auth-design.md) — chunk-3
-- [api-guidelines.md](../sources/api-guidelines.md) — chunk-2
+- [auth-design.md](../sources/auth-design.md) — c-fcba1172
+- [api-guidelines.md](../sources/api-guidelines.md) — c-eec47ebf
+
+<!-- human notes below -->
