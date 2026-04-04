@@ -18,5 +18,18 @@
     "chunk_strategy": "heading"
   },
   "obsidian": false,
-  "output_dir": "kb/output"
+  "output_dir": "kb/output",
+  "images": {
+    "download": true,
+    "max_size_mb": 10
+  },
+  "impute": {
+    "enabled": false,
+    "max_searches": 5
+  },
+  "clipper": {
+    "enabled": false,
+    "watch_dir": null,
+    "auto_ingest": false
+  }
 }

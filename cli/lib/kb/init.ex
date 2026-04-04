@@ -6,6 +6,8 @@ defmodule Kb.Init do
 
     dirs = [
       Path.join(base, "raw"),
+      Path.join(base, "raw/media"),
+      Path.join(base, "raw/generated"),
       Path.join(base, "wiki/concepts"),
       Path.join(base, "wiki/sources"),
       Path.join(base, "output")
@@ -73,7 +75,20 @@ defmodule Kb.Init do
         chunk_strategy: "heading"
       },
       obsidian: false,
-      output_dir: "kb/output"
+      output_dir: "kb/output",
+      images: %{
+        download: true,
+        max_size_mb: 10
+      },
+      impute: %{
+        enabled: false,
+        max_searches: 5
+      },
+      clipper: %{
+        enabled: false,
+        watch_dir: nil,
+        auto_ingest: false
+      }
     }
     |> Jason.encode!(pretty: true)
     |> Kernel.<>("\n")

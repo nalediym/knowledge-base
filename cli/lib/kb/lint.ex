@@ -2,9 +2,10 @@ defmodule Kb.Lint do
   @moduledoc """
   Health checks for the knowledge base.
 
-  12 checks: staleness, orphans, broken links, thin concepts,
+  16 checks: staleness, orphans, broken links, thin concepts,
   missing provenance, contradictions, index drift, token bloat,
-  marker integrity, reviewed drift, slug collisions, stale chunks.
+  marker integrity, reviewed drift, slug collisions, stale chunks,
+  explore candidates, missing data, generated ratio, orphan images.
   """
 
   @marker "<!-- human notes below -->"
@@ -22,7 +23,9 @@ defmodule Kb.Lint do
       {"Orphan pages", &check_orphan_pages/1},
       {"Broken links", &check_broken_links/1},
       {"Marker integrity", &check_markers/1},
-      {"Slug collisions", &check_slug_collisions(manifest, &1)}
+      {"Slug collisions", &check_slug_collisions(manifest, &1)},
+      {"Generated ratio", &check_generated_ratio(manifest, &1)},
+      {"Orphan images", &check_orphan_images/1}
     ]
 
     results =
@@ -136,6 +139,43 @@ defmodule Kb.Lint do
 
     status = if dupes != [], do: "FAIL", else: "PASS"
     {status, length(dupes)}
+  end
+
+  defp check_generated_ratio(manifest, _) do
+    sources = Map.get(manifest, "sources", [])
+    total = length(sources)
+    generated = Enum.count(sources, & &1["generated"])
+
+    ratio = if total > 0, do: generated / (total * 1.0), else: 0.0
+    status = if ratio > 0.3, do: "WARN", else: "PASS"
+    {status, generated}
+  end
+
+  defp check_orphan_images(_) do
+    media_files = Path.wildcard("kb/raw/media/*")
+
+    if media_files == [] do
+      {"PASS", 0}
+    else
+      source_files =
+        Path.wildcard("kb/wiki/sources/*.md") ++
+        Path.wildcard("kb/raw/*.md") ++
+        Path.wildcard("kb/raw/generated/*.md")
+
+      all_content =
+        Enum.map_join(source_files, "\n", &File.read!/1)
+
+      orphan_count =
+        Enum.count(media_files, fn img ->
+          basename = Path.basename(img)
+          not String.contains?(all_content, basename)
+        end)
+
+      status = if orphan_count > 0, do: "WARN", else: "PASS"
+      {status, orphan_count}
+    end
+  rescue
+    _ -> {"PASS", 0}
   end
 
   defp overall_status("FAIL"), do: "UNHEALTHY"

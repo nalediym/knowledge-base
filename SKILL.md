@@ -43,6 +43,7 @@ Invoke with: `/knowledge-base <mode> [target]`
 | `query <question>` | Research an answer against the wiki, cite sources |
 | `lint` | Health check: staleness, orphans, broken links, hallucination audit |
 | `output <format>` | Render wiki content as slides (Marp), diagrams (Mermaid), or summary |
+| `clip` | Ingest new files from Obsidian Web Clipper watch directory |
 
 Default mode (no argument): `lint` on the current project's KB if it exists, else `init`.
 
@@ -69,12 +70,15 @@ Stamp the KB directory structure:
 ```
 kb/
   raw/              # Original source documents (user-managed, never LLM-edited)
+    media/          # Downloaded images referenced by sources
+    generated/      # Re-ingested output artifacts (see Output Re-ingestion)
   wiki/             # LLM-compiled articles (LLM-managed)
     index.md        # Master index — auto-maintained
     concepts/       # One .md per concept
     sources/        # One .md per ingested source (summary + metadata)
   output/           # Generated artifacts (slides, diagrams, reports)
   .kb-manifest.json # Tracks ingested files, timestamps, hashes
+  .kb-lock          # Transient lock file (see Manifest Locking)
 ```
 
 Create `kb/wiki/index.md` with:
@@ -131,7 +135,20 @@ The manifest tracks runtime state only (what's been ingested, when).
     "chunk_strategy": "heading"
   },
   "obsidian": false,
-  "output_dir": "kb/output"
+  "output_dir": "kb/output",
+  "images": {
+    "download": true,
+    "max_size_mb": 10
+  },
+  "impute": {
+    "enabled": false,
+    "max_searches": 5
+  },
+  "clipper": {
+    "enabled": false,
+    "watch_dir": null,
+    "auto_ingest": false
+  }
 }
 ```
 
@@ -150,6 +167,25 @@ If found, ask once: "Obsidian detected. Open KB as vault after compile? (Y/n)"
 - If yes: set `obsidian: true` in `kb.config.json`
 - Use standard markdown links everywhere (NOT `[[wikilinks]]`)
 - After compile, run: `open "obsidian://open?vault=$(basename $KB_ROOT)"` on macOS
+
+---
+
+## Manifest Locking
+
+Before any write to `.kb-manifest.json`, acquire a lock:
+
+1. Check for `kb/.kb-lock`. If it exists and is < 5 minutes old, **abort with warning**:
+   "Another session is writing to this KB. Wait or remove `kb/.kb-lock` if stale."
+2. If lock is > 5 minutes old, warn: "Stale lock found (PID [pid], [age] ago). Overriding."
+3. Create `kb/.kb-lock`:
+   ```json
+   { "pid": "[process-id]", "ts": "[ISO timestamp]", "operation": "[ingest|compile|lint]" }
+   ```
+4. Perform the manifest write.
+5. Remove `kb/.kb-lock` immediately after write completes.
+
+All phases that touch the manifest (ingest, compile, lint, output re-ingestion) MUST
+use this locking protocol. This prevents corruption from concurrent sessions.
 
 ---
 
@@ -240,6 +276,47 @@ For ingesting an entire project (e.g., `~/.opencode/skills/`):
 
 This prevents concurrent write conflicts on the manifest.
 
+### Image Downloading
+
+When `config.images.download` is true and ingesting a URL source:
+
+1. After `WebFetch`, scan the resulting markdown for image references (`![...](url)`)
+2. For each image URL:
+   - Skip if size exceeds `config.images.max_size_mb`
+   - Download to `kb/raw/media/{source-slug}--{image-filename}`
+   - Rewrite the markdown image link to the local path: `![alt](media/{source-slug}--{image-filename})`
+3. For local file ingest: if the source references images via relative paths,
+   copy those images to `kb/raw/media/` and rewrite links
+4. Update the manifest source entry with `"images": [list of media filenames]`
+
+Supported formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`
+
+Images are stored alongside raw sources and tracked in the manifest. Compile
+can pass them to multimodal LLMs for description extraction (see Phase 3).
+
+### Obsidian Web Clipper Integration
+
+When `config.clipper.enabled` is true and `config.clipper.watch_dir` is set:
+
+1. The `kb clip` command (or `/knowledge-base clip`) scans the watch directory
+   for `.md` files not yet in the manifest
+2. Each new file is ingested via the standard pipeline (sanitize, chunk, source page)
+3. Web Clipper markdown preserves metadata as YAML frontmatter (title, author, date,
+   source URL). The ingest pipeline extracts and stores this in source page headers.
+4. Images saved by Web Clipper are already local, so they go through the standard
+   image download path (copy to `kb/raw/media/`, rewrite links)
+
+To set up:
+1. Install the [Obsidian Web Clipper](https://obsidian.md/clipper) browser extension
+2. Configure it to save clipped pages to a folder (e.g., `~/obsidian-vault/clipped/`)
+3. Set `clipper.watch_dir` in `kb.config.json` to that folder
+4. Set `clipper.enabled: true`
+5. Run `kb clip` (or `/knowledge-base clip`) to ingest new clips
+
+If `clipper.auto_ingest` is true, `kb build` automatically runs a clipper scan
+before compiling. This means clipping a page while browsing automatically feeds
+it into your next compile cycle.
+
 ---
 
 ## Phase 3: COMPILE
@@ -329,6 +406,21 @@ Regenerate `kb/wiki/index.md`:
 For every concept page, ensure all references are bidirectional.
 If A links to B, B must link back to A.
 
+### Step 5: Image description extraction
+
+If any source has associated images in `kb/raw/media/`:
+
+1. Read each image (multimodal input)
+2. Generate a concise description (1-3 sentences) of what the image shows
+3. Embed the description as alt-text in the source page:
+   `![Generated: {description}](../../raw/media/{filename})`
+4. If the image contains diagrams, charts, or architecture: extract structured
+   data (entities, relationships) and add to the source page's Key Claims section
+5. Reference image descriptions in concept pages where relevant
+
+This enables the wiki to capture knowledge from visual sources (architecture
+diagrams, screenshots, whiteboard photos) alongside text.
+
 ### Hallucination Guard
 
 During compilation:
@@ -375,6 +467,11 @@ Answer questions against the wiki.
 
 ### Gaps
 [What the KB doesn't cover that would improve this answer]
+
+### Explore Next
+- [suggested question 1] — based on [gap or weak connection]
+- [suggested question 2] — based on [thin concept needing depth]
+- [suggested question 3] — based on [cross-concept connection not yet explored]
 ```
 
 ### Filing Queries
@@ -390,6 +487,20 @@ Append to `kb/wiki/index.md` under "Recent Queries" (max 20, rotate oldest):
 ```
 
 If the query reveals a new concept or connection, offer to run `compile` to integrate it.
+
+### Explore-Next Generation
+
+After every query answer, generate 3-5 follow-up suggestions in the `### Explore Next`
+section. Suggestions come from:
+
+1. **Gaps** — what the KB doesn't cover that would improve the answer
+2. **Thin concepts** — concepts with low confidence or few sources that relate to the query
+3. **Unlinked connections** — concept pairs that likely relate but have no explicit link
+4. **Contradictions** — conflicting claims across sources worth investigating
+5. **Recency** — stale sources on the topic that may have newer data available
+
+Suggestions are phrased as questions the user can copy-paste as the next query.
+The goal: every query "adds up" — each answer opens doors to deeper exploration.
 
 ---
 
@@ -413,6 +524,10 @@ Health check the KB. Run all checks, report as a scorecard.
 | **Marker integrity** | `<!-- human notes below -->` markers present and unduped |
 | **Reviewed drift** | Pages with `REVIEWED` tag where generated content changed since review |
 | **Slug collisions** | Multiple sources mapping to same slug |
+| **Explore candidates** | Concept pairs that likely relate but have no explicit link |
+| **Missing data** | Low-confidence concepts that could be enriched via web search |
+| **Generated ratio** | Re-ingested outputs exceeding 30% of total sources |
+| **Orphan images** | Images in `kb/raw/media/` not referenced by any source page |
 
 ### Scorecard
 
@@ -440,8 +555,43 @@ Overall status is the worst individual check status.
 
 ### Auto-fix
 
-For safe fixes (broken links, index drift, marker insertion), offer to fix automatically.
+For safe fixes (broken links, index drift, marker insertion, orphan images), offer to fix automatically.
 For unsafe fixes (stale sources, contradictions, reviewed drift), list them and ask user.
+
+### Missing Data Imputation
+
+When `config.impute.enabled` is true and lint finds low-confidence or thin concepts:
+
+1. Identify concepts with confidence `low` or only 1 source
+2. For each (up to `config.impute.max_searches`), run `WebSearch` for corroborating data
+3. Present findings as **proposals** — never auto-ingest:
+   ```markdown
+   ## Imputation Proposals
+
+   ### [Concept Name] (current confidence: low, 1 source)
+   **Found:** [brief summary of web search finding]
+   **Source URL:** [url]
+   **Action:** Ingest this as a new source? (Y/n)
+   ```
+4. If user approves, ingest the URL via standard Phase 2 pipeline
+5. Mark the resulting source page with `**Provenance:** imputed | needs-review`
+6. Imputed sources contribute to concept confidence but are flagged in the scorecard
+
+This prevents silent hallucination — every imputation requires human approval.
+
+### Explore Candidates
+
+After all checks, generate an `## Explore Candidates` section in the health report:
+
+1. Scan concept pages for pairs that share sources but have no explicit link
+2. Identify concepts whose descriptions overlap semantically but aren't connected
+3. List 5-10 candidate connections with reasoning:
+   ```markdown
+   ## Explore Candidates
+   - [concept-a](path) ↔ [concept-b](path) — both reference [source], likely related via [reason]
+   - [concept-c](path) → [concept-d](path) — c appears to be a prerequisite for d
+   ```
+4. User can approve connections (added on next compile) or dismiss
 
 ---
 
@@ -460,6 +610,30 @@ After generating output, if `config.obsidian` is true:
 ```bash
 open "obsidian://open?vault=$(basename $(dirname $KB_ROOT))&file=kb/output/[filename]"
 ```
+
+### Output Re-ingestion
+
+After generating any output, offer: **"File this output back into the wiki? (Y/n)"**
+
+If the user accepts:
+
+1. Copy the output file to `kb/raw/generated/{output-filename}`
+2. Ingest via standard Phase 2 pipeline with these differences:
+   - Source slug gets `generated--` prefix: `generated--topic-slides.md`
+   - Source page metadata includes `**Provenance:** generated` tag
+   - Manifest entry includes `"generated": true`
+3. On next compile:
+   - Generated sources contribute to concept pages (add breadth)
+   - Generated sources are **excluded from confidence scoring** (prevent amplification)
+   - Concepts built solely from generated sources get confidence `low`
+4. Lint checks:
+   - **Generated ratio** — warn if `generated/` sources exceed 30% of total sources
+   - This prevents the wiki from becoming self-referential
+
+The re-ingestion loop means your explorations and queries "add up" in the knowledge
+base — each output enriches the wiki for future queries. But the provenance wall
+prevents hallucination amplification: generated content can never bootstrap its own
+confidence.
 
 ---
 
@@ -547,8 +721,8 @@ The 24h expiry is too long for admin endpoints. We should use 1h for /admin/*.
 ## Known Limitations
 
 - **Concurrency:** Claude Code runs single-threaded per session. Bulk ingest uses
-  parallel subagents for source page creation but serializes manifest writes. Do not
-  run `/knowledge-base compile` while another session is ingesting.
+  parallel subagents for source page creation but serializes manifest writes via
+  `kb/.kb-lock`. Do not run `/knowledge-base compile` while another session is ingesting.
 - **Scale:** The index-based retrieval works well up to ~500 sources. Beyond that,
   the index itself becomes a bottleneck. Phase 2 (Elixir CLI) will add proper search.
 - **Singleton facts:** Important one-off claims (CSRF config, error formats) stay in
@@ -556,6 +730,12 @@ The 24h expiry is too long for admin endpoints. We should use 1h for /admin/*.
   pages. Query mode can still find them via source pages.
 - **Trust model:** The hallucination guard is a prompt-level policy, not a runtime
   guarantee. Always verify surprising claims against raw sources.
+- **Images:** Image description extraction depends on multimodal LLM capability.
+  SVGs are stored but not described. Very large images (> `max_size_mb`) are skipped.
+- **Imputation:** Web search results are proposals only — never auto-ingested.
+  Quality depends on search result relevance. Disabled by default.
+- **Re-ingestion loops:** Generated sources are excluded from confidence scoring to
+  prevent hallucination amplification. Lint warns if generated ratio exceeds 30%.
 
 ---
 
