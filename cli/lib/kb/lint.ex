@@ -27,7 +27,8 @@ defmodule Kb.Lint do
       {"Generated ratio", &check_generated_ratio(manifest, &1)},
       {"Orphan images", &check_orphan_images/1},
       {"Candidates overflow", &check_candidates_overflow/1},
-      {"Lifecycle stale", &check_lifecycle_stale/1}
+      {"Lifecycle stale", &check_lifecycle_stale/1},
+      {"Low confidence", &check_low_confidence/1}
     ]
 
     results =
@@ -197,6 +198,44 @@ defmodule Kb.Lint do
       t
     else
       _ -> 20
+    end
+  end
+
+  @low_confidence_threshold 0.3
+
+  defp check_low_confidence(_) do
+    concepts = Path.wildcard("kb/wiki/concepts/*.md")
+
+    low =
+      Enum.count(concepts, fn path ->
+        case File.read(path) do
+          {:ok, content} ->
+            case extract_confidence(content) do
+              nil -> false
+              score -> score < @low_confidence_threshold
+            end
+
+          _ ->
+            false
+        end
+      end)
+
+    status = if low > 0, do: "WARN", else: "PASS"
+    {status, low}
+  rescue
+    _ -> {"PASS", 0}
+  end
+
+  defp extract_confidence(content) do
+    with "---\n" <> rest <- content,
+         [yaml, _body] <- String.split(rest, "\n---\n", parts: 2),
+         [_, raw] <- Regex.run(~r/(?m)^confidence:\s*(.+)$/, yaml) do
+      case Float.parse(String.trim(raw)) do
+        {f, _} -> f
+        :error -> Kb.Confidence.shim_legacy(raw)
+      end
+    else
+      _ -> nil
     end
   end
 

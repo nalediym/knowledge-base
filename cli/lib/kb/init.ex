@@ -92,6 +92,20 @@ defmodule Kb.Init do
       },
       candidates: %{
         overflow_threshold: 20
+      },
+      confidence: %{
+        weights: %{
+          sources: 0.25,
+          quality: 0.25,
+          recency: 0.25,
+          crossrefs: 0.25
+        },
+        decay_tau_days: %{
+          code: 90,
+          concept: 365,
+          news: 30,
+          default: 180
+        }
       }
     }
     |> Jason.encode!(pretty: true)
