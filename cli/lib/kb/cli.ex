@@ -6,8 +6,10 @@ defmodule Kb.CLI do
     kb init [path] [--yes] [--no-vault]
                                  — stamp KB (auto-detects Obsidian vault)
     kb add <source>              — ingest a file, directory, or URL
-    kb build                     — compile wiki from raw sources
-                                   (pass --approve to diff each candidate before staging)
+    kb build [--approve] [--ai-siblings]
+                                 — compile wiki from raw sources
+                                   (--approve diffs candidates before staging;
+                                    --ai-siblings emits .txt/.json per page)
     kb compile                   — alias for kb build
     kb approve [<name>]          — promote candidates/<name>.md -> concepts/<name>.md
                                    (use --all to bulk promote, --force to overwrite)
@@ -52,8 +54,8 @@ defmodule Kb.CLI do
       ["approve" | rest] ->
         Kb.Approve.run(rest)
 
-      ["compile" | _] ->
-        Kb.Compile.run()
+      ["compile" | rest] ->
+        Kb.Compile.run(rest)
 
       ["lint" | _] ->
         Kb.Lint.run()

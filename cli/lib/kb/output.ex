@@ -32,8 +32,25 @@ defmodule Kb.Output do
         "diagram" -> render_diagram(concepts)
         "graph" -> render_graph(concepts)
         "summary" -> render_summary(concepts)
-        other -> IO.puts("Unknown format: #{other}. Options: slides, diagram, graph, summary")
+        ai when ai in ["llms-txt", "llms-full", "jsonld", "sitemap", "all"] -> render_ai(ai)
+        other -> IO.puts("Unknown format: #{other}. Options: slides, diagram, graph, summary, llms-txt, llms-full, jsonld, sitemap, all")
       end
+    end
+  end
+
+  defp render_ai(format) do
+    case Kb.Output.Ai.run(format) do
+      {:ok, path} ->
+        IO.puts("Wrote #{path}")
+
+      results when is_list(results) ->
+        Enum.each(results, fn
+          {:ok, path} -> IO.puts("Wrote #{path}")
+          other -> IO.inspect(other, label: "output")
+        end)
+
+      {:error, {:unknown_format, other}} ->
+        IO.puts("Unknown AI format: #{other}")
     end
   end
 

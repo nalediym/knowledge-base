@@ -12,6 +12,11 @@ defmodule Kb.Compile do
         compile(manifest)
         if "--approve" in args, do: Kb.Approve.print_diffs()
 
+        if "--ai-siblings" in args do
+          written = Kb.Output.Ai.write_siblings()
+          IO.puts("Wrote #{length(written)} AI sibling files (.txt + .json)")
+        end
+
       {:error, :no_manifest} ->
         IO.puts("No KB found. Run `kb init` first.")
     end
