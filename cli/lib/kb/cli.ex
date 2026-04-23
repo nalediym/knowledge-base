@@ -11,6 +11,10 @@ defmodule Kb.CLI do
     kb output <format>   — render wiki as slides, diagram, summary, or graph
     kb file <path>       — re-ingest an output artifact back into the wiki
     kb clip              — ingest new files from Web Clipper watch directory
+    kb watch [--hook] [--poll-ms 500]
+                         — debounced poll of raw/session dirs; optional SessionStart hook
+    kb schedule --platform {macos|linux|windows} [--output <file>]
+                         — emit launchd/systemd/task.xml scaffolds
     kb version           — print version
   """
 
@@ -42,6 +46,12 @@ defmodule Kb.CLI do
 
       ["clip" | _] ->
         Kb.Ingest.ingest_clipper()
+
+      ["watch" | rest] ->
+        Kb.Watch.run(rest)
+
+      ["schedule" | rest] ->
+        Kb.Watch.Schedule.run(rest)
 
       ["version" | _] ->
         IO.puts("kb v#{Kb.version()}")
