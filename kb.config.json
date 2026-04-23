@@ -31,5 +31,13 @@
     "enabled": false,
     "watch_dir": null,
     "auto_ingest": false
+  },
+  "ingest": {
+    "sessions": {
+      "agents": ["claude", "codex"]
+    },
+    "redaction": {
+      "extra_patterns": []
+    }
   }
 }
