@@ -82,8 +82,6 @@ defmodule Kb.Lint do
 
     orphan_count =
       Enum.count(concepts, fn path ->
-        content = File.read!(path)
-        # Check if any source page links to this concept
         name = Path.basename(path)
         sources = Path.wildcard("kb/wiki/sources/*.md")
 

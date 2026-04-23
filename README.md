@@ -76,6 +76,21 @@ mix escript.build
 # Binary: ./kb
 ```
 
+**Note on hybrid retrieval (`kb index` / `kb query`):** these commands use
+SQLite FTS5 via the `exqlite` NIF. Default escripts don't bundle NIF `priv/`
+directories, so when invoked through `./kb`, FTS-backed queries fall back to
+the legacy grep path with a one-line notice. To exercise the full indexed
+path, run through Mix instead:
+
+```bash
+cd cli
+mix run -e 'Kb.CLI.main(["index"])'
+mix run -e 'Kb.CLI.main(["query", "your question"])'
+```
+
+A fully bundled single-binary distribution (via Burrito or Bakeware) is
+tracked as a follow-up — not required for the default grep/skill workflows.
+
 ### Using KB as an MCP server
 
 `kb mcp` launches a [Model Context Protocol](https://modelcontextprotocol.io/) stdio server exposing 9 tools: `kb_query`, `kb_search`, `kb_list_sources`, `kb_read_page`, `kb_lint`, `kb_ingest`, `kb_compile`, `kb_export`, `kb_dashboard`. Any MCP client (Claude Code, Claude Desktop, Cursor, Cline, Codex) can connect.

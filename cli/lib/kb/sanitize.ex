@@ -11,8 +11,6 @@ defmodule Kb.Sanitize do
   @marker "<!-- human notes below -->"
   @escaped_marker "<!-- human notes below (escaped) -->"
 
-  @dangerous_schemes ~r/(javascript|data|vbscript):/i
-
   @doc """
   Sanitize markdown content before storing in kb/raw/ or wiki/sources/.
   """
