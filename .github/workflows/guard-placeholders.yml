@@ -1,0 +1,40 @@
+name: guard-placeholders
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  no-placeholders:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if any tracked file contains a release placeholder
+        run: |
+          set -e
+          # Add new sentinels here as the project grows.
+          patterns=(
+            "REPLACE_WITH_SHA256_AT_TAG_TIME"
+            "TODO_SHA256_HERE"
+            "REPLACE_ME_BEFORE_RELEASE"
+          )
+          found=0
+          for p in "${patterns[@]}"; do
+            # Search tracked files only; ignore the workflow itself and release scripts.
+            hits=$(git grep -l -F "$p" -- \
+                     ':!.github/workflows/guard-placeholders.yml' \
+                     ':!scripts/release-brew.sh' \
+                   || true)
+            if [ -n "$hits" ]; then
+              echo "::error::Placeholder '$p' still present in:"
+              echo "$hits" | sed 's/^/  /'
+              found=1
+            fi
+          done
+          if [ "$found" -ne 0 ]; then
+            echo ""
+            echo "Run scripts/release-brew.sh <version> to substitute release values."
+            exit 1
+          fi
+          echo "No placeholders. OK."
