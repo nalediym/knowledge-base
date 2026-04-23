@@ -3,7 +3,8 @@ defmodule Kb.CLI do
   CLI entrypoint. Maps commands to modules.
 
   Usage:
-    kb init [path]               — stamp KB directory structure
+    kb init [path] [--yes] [--no-vault]
+                                 — stamp KB (auto-detects Obsidian vault)
     kb add <source>              — ingest a file, directory, or URL
     kb build                     — compile wiki from raw sources
                                    (pass --approve to diff each candidate before staging)
@@ -35,8 +36,9 @@ defmodule Kb.CLI do
   def main(args) do
     case args do
       ["init" | rest] ->
-        path = List.first(rest) || "."
-        Kb.Init.run(path)
+        {opts, positional} = parse_init_args(rest)
+        path = List.first(positional) || "."
+        Kb.Init.run(path, opts)
 
       ["add" | sources] when sources != [] ->
         Enum.each(sources, &Kb.Ingest.run/1)
@@ -158,4 +160,13 @@ defmodule Kb.CLI do
 
   defp maybe_put(kw, _k, nil), do: kw
   defp maybe_put(kw, k, v), do: Keyword.put(kw, k, v)
+
+  defp parse_init_args(args) do
+    Enum.reduce(args, {[], []}, fn
+      "--yes", {opts, pos} -> {[{:yes, true} | opts], pos}
+      "-y", {opts, pos} -> {[{:yes, true} | opts], pos}
+      "--no-vault", {opts, pos} -> {[{:no_vault, true} | opts], pos}
+      other, {opts, pos} -> {opts, pos ++ [other]}
+    end)
+  end
 end
