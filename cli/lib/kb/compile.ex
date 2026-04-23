@@ -44,10 +44,36 @@ defmodule Kb.Compile do
     Concept extraction requires an LLM call — use `kb build --llm` (coming soon).
     """)
 
+    # Lifecycle sweep — auto-stale + drift demotion across all wiki pages
+    config = read_config()
+    sweep = Kb.LifecycleSweep.run(config: config)
+
+    IO.puts("""
+    Lifecycle:
+      Visited:       #{sweep.visited}
+      Filled default: #{sweep.filled_default}
+      Auto-staled:   #{sweep.auto_staled}
+      Drift demoted: #{sweep.drift_demoted}
+      Drift warned:  #{sweep.drift_warned}
+    """)
+
     # Update manifest
     manifest
     |> Map.put("last_compiled", DateTime.utc_now() |> DateTime.to_iso8601())
     |> Kb.Manifest.write()
+  end
+
+  defp read_config do
+    case File.read("kb.config.json") do
+      {:ok, json} ->
+        case Jason.decode(json) do
+          {:ok, m} -> m
+          _ -> %{}
+        end
+
+      _ ->
+        %{}
+    end
   end
 
   defp check_staleness(sources) do

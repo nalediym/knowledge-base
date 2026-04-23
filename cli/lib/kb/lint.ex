@@ -25,7 +25,8 @@ defmodule Kb.Lint do
       {"Marker integrity", &check_markers/1},
       {"Slug collisions", &check_slug_collisions(manifest, &1)},
       {"Generated ratio", &check_generated_ratio(manifest, &1)},
-      {"Orphan images", &check_orphan_images/1}
+      {"Orphan images", &check_orphan_images/1},
+      {"Lifecycle stale", &check_lifecycle_stale/1}
     ]
 
     results =
@@ -181,4 +182,50 @@ defmodule Kb.Lint do
   defp overall_status("FAIL"), do: "UNHEALTHY"
   defp overall_status("WARN"), do: "NEEDS ATTENTION"
   defp overall_status(_), do: "HEALTHY"
+
+  # --- Lifecycle stale check ---------------------------------------------
+
+  defp check_lifecycle_stale(_) do
+    wiki_files = Path.wildcard("kb/wiki/**/*.md")
+
+    by_project =
+      Enum.reduce(wiki_files, %{}, fn file, acc ->
+        case File.read(file) do
+          {:ok, content} ->
+            {meta, _body} = Kb.Lifecycle.parse_page(content)
+
+            if Kb.Lifecycle.state_of(meta) == :stale do
+              project = project_of(file)
+              Map.update(acc, project, 1, &(&1 + 1))
+            else
+              acc
+            end
+
+          _ ->
+            acc
+        end
+      end)
+
+    total = by_project |> Map.values() |> Enum.sum()
+
+    if total > 0 do
+      IO.puts("\n  Stale pages by project:")
+
+      by_project
+      |> Enum.sort_by(fn {k, _} -> k end)
+      |> Enum.each(fn {project, n} -> IO.puts("    #{project}: #{n}") end)
+    end
+
+    status = if total > 0, do: "WARN", else: "PASS"
+    {status, total}
+  rescue
+    _ -> {"PASS", 0}
+  end
+
+  defp project_of(path) do
+    case Enum.drop_while(Path.split(path), &(&1 != "wiki")) do
+      ["wiki", bucket | _] -> bucket
+      _ -> "unknown"
+    end
+  end
 end
