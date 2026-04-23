@@ -11,6 +11,7 @@ defmodule Kb.CLI do
     kb output <format>   — render wiki as slides, diagram, summary, or graph
     kb file <path>       — re-ingest an output artifact back into the wiki
     kb clip              — ingest new files from Web Clipper watch directory
+    kb mcp               — launch MCP stdio server (JSON-RPC 2.0 on stdio)
     kb version           — print version
   """
 
@@ -42,6 +43,9 @@ defmodule Kb.CLI do
 
       ["clip" | _] ->
         Kb.Ingest.ingest_clipper()
+
+      ["mcp" | _] ->
+        Kb.MCP.run()
 
       ["version" | _] ->
         IO.puts("kb v#{Kb.version()}")
