@@ -4,9 +4,9 @@ class Kb < Formula
   # Update `url`, `sha256`, and `version` at each release tag.
   # Compute sha256 with:
   #   curl -sL https://github.com/nalediym/knowledge-base/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
-  url "https://github.com/nalediym/knowledge-base/archive/refs/tags/v0.1.0.tar.gz"
-  version "0.1.0"
-  sha256 "6ac083250ff3e12db96445f881bba89153c26077cf3b92401505a4affcee8d14"
+  url "https://github.com/nalediym/knowledge-base/archive/refs/tags/v0.2.0.tar.gz"
+  version "0.2.0"
+  sha256 "550ca41f96521255d1eabe03def913fef74713c41392ea3679d5d4d7b7b26bb1"
   license "MIT"
   head "https://github.com/nalediym/knowledge-base.git", branch: "main"
 
