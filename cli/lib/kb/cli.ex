@@ -6,6 +6,9 @@ defmodule Kb.CLI do
     kb init [path]       — stamp KB directory structure
     kb add <source>      — ingest a file, directory, or URL
     kb build             — compile wiki from raw sources
+                           (pass --approve to diff each candidate before staging)
+    kb approve [<name>]  — promote candidates/<name>.md -> concepts/<name>.md
+                           (use --all to bulk promote, --force to overwrite)
     kb ask <question>    — query the knowledge base
     kb check             — lint health check
     kb output <format>   — render wiki as slides, diagram, summary, or graph
@@ -23,8 +26,11 @@ defmodule Kb.CLI do
       ["add" | sources] when sources != [] ->
         Enum.each(sources, &Kb.Ingest.run/1)
 
-      ["build" | _] ->
-        Kb.Compile.run()
+      ["build" | rest] ->
+        Kb.Compile.run(rest)
+
+      ["approve" | rest] ->
+        Kb.Approve.run(rest)
 
       ["ask" | words] when words != [] ->
         question = Enum.join(words, " ")

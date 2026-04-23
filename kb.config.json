@@ -31,5 +31,8 @@
     "enabled": false,
     "watch_dir": null,
     "auto_ingest": false
+  },
+  "candidates": {
+    "overflow_threshold": 20
   }
 }

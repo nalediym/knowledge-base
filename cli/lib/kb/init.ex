@@ -9,6 +9,7 @@ defmodule Kb.Init do
       Path.join(base, "raw/media"),
       Path.join(base, "raw/generated"),
       Path.join(base, "wiki/concepts"),
+      Path.join(base, "wiki/candidates"),
       Path.join(base, "wiki/sources"),
       Path.join(base, "output")
     ]
@@ -88,6 +89,9 @@ defmodule Kb.Init do
         enabled: false,
         watch_dir: nil,
         auto_ingest: false
+      },
+      candidates: %{
+        overflow_threshold: 20
       }
     }
     |> Jason.encode!(pretty: true)
