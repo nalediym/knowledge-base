@@ -7,10 +7,15 @@ defmodule Kb.CLI do
     kb add <source>      — ingest a file, directory, or URL
     kb build             — compile wiki from raw sources
                            (pass --approve to diff each candidate before staging)
+    kb compile           — alias for kb build
     kb approve [<name>]  — promote candidates/<name>.md -> concepts/<name>.md
                            (use --all to bulk promote, --force to overwrite)
+    kb review <page>     — promote a page: draft → reviewed
+    kb verify <page>     — promote a page: reviewed → verified (stamps REVIEWED)
+    kb archive <page>    — archive a page (any state → archived)
     kb ask <question>    — query the knowledge base
     kb check             — lint health check
+    kb lint              — alias for kb check
     kb output <format>   — render wiki as slides, diagram, summary, or graph
     kb file <path>       — re-ingest an output artifact back into the wiki
     kb clip              — ingest new files from Web Clipper watch directory
@@ -41,6 +46,21 @@ defmodule Kb.CLI do
 
       ["approve" | rest] ->
         Kb.Approve.run(rest)
+
+      ["compile" | _] ->
+        Kb.Compile.run()
+
+      ["lint" | _] ->
+        Kb.Lint.run()
+
+      ["review", page | _] ->
+        Kb.LifecycleCLI.run(:review, page)
+
+      ["verify", page | _] ->
+        Kb.LifecycleCLI.run(:verify, page)
+
+      ["archive", page | _] ->
+        Kb.LifecycleCLI.run(:archive, page)
 
       ["ask" | words] when words != [] ->
         question = Enum.join(words, " ")
