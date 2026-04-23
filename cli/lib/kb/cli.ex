@@ -33,6 +33,9 @@ defmodule Kb.CLI do
       ["check" | _] ->
         Kb.Lint.run()
 
+      ["lint" | rest] ->
+        run_lint(rest)
+
       ["output" | rest] ->
         format = List.first(rest) || "summary"
         Kb.Output.run(format)
@@ -49,6 +52,28 @@ defmodule Kb.CLI do
       _ ->
         IO.puts(@moduledoc)
         System.halt(1)
+    end
+  end
+
+  defp run_lint(args) do
+    cond do
+      "--conflicts" in args ->
+        provider = parse_flag(args, "--provider") || "heuristic"
+        Kb.Conflicts.run(provider: provider)
+
+      args == [] ->
+        Kb.Lint.run()
+
+      true ->
+        IO.puts("Usage: kb lint --conflicts [--provider heuristic|ollama|openai|anthropic]")
+        System.halt(1)
+    end
+  end
+
+  defp parse_flag(args, name) do
+    case Enum.find_index(args, &(&1 == name)) do
+      nil -> nil
+      idx -> Enum.at(args, idx + 1)
     end
   end
 end
