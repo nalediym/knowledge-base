@@ -16,7 +16,10 @@ defmodule Kb.CLI do
     kb review <page>             — promote a page: draft → reviewed
     kb verify <page>             — promote a page: reviewed → verified (stamps REVIEWED)
     kb archive <page>            — archive a page (any state → archived)
-    kb ask <question>            — query the knowledge base
+    kb index [--include-raw] [--embeddings]
+                                 — build SQLite FTS5 index (+ optional Ollama embeddings)
+    kb query <question>          — hybrid retrieval (FTS + embeddings via RRF)
+    kb ask <question>            — alias for `kb query`
     kb check                     — lint health check
     kb lint                      — alias for kb check
     kb output <format>           — render wiki as slides, diagram, summary, or graph
@@ -72,6 +75,13 @@ defmodule Kb.CLI do
       ["ask" | words] when words != [] ->
         question = Enum.join(words, " ")
         Kb.Query.run(question)
+
+      ["query" | words] when words != [] ->
+        question = Enum.join(words, " ")
+        Kb.Query.run(question)
+
+      ["index" | rest] ->
+        run_index(rest)
 
       ["check" | _] ->
         Kb.Lint.run()
@@ -170,5 +180,19 @@ defmodule Kb.CLI do
       "--no-vault", {opts, pos} -> {[{:no_vault, true} | opts], pos}
       other, {opts, pos} -> {opts, pos ++ [other]}
     end)
+  end
+
+  defp run_index(flags) do
+    include_raw? = "--include-raw" in flags
+    embeddings? = "--embeddings" in flags
+
+    opts = [include_raw: include_raw?, embeddings: embeddings?]
+
+    {:ok, stats} = Kb.Index.build(opts)
+
+    IO.puts(
+      "Indexed #{stats.files} files, #{stats.chunks} chunks " <>
+        "(reindexed #{stats.reindexed}, embedded #{stats.embedded})."
+    )
   end
 end

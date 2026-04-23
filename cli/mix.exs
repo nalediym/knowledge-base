@@ -26,7 +26,9 @@ defmodule Kb.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
-      {:yaml_elixir, "~> 2.11"}
+      {:yaml_elixir, "~> 2.11"},
+      # Bare SQLite driver (no Ecto overhead). Needed for FTS5 hybrid retrieval.
+      {:exqlite, "~> 0.36"}
     ]
   end
 end
