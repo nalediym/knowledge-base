@@ -2,7 +2,7 @@ defmodule KbTest do
   use ExUnit.Case
   doctest Kb
 
-  test "greets the world" do
-    assert Kb.hello() == :world
+  test "version is a string" do
+    assert is_binary(Kb.version())
   end
 end

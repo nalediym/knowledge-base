@@ -14,7 +14,7 @@ defmodule Kb.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :crypto],
+      extra_applications: [:logger, :crypto, :xmerl],
       mod: {Kb.Application, []}
     ]
   end

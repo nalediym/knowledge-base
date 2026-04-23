@@ -14,6 +14,10 @@ defmodule Kb.CLI do
     kb mcp               — launch MCP stdio server (JSON-RPC 2.0 on stdio)
     kb ingest --sessions [--agent claude|codex|all]
                          — mine agent session transcripts into kb/raw/sessions/
+    kb watch [--hook] [--poll-ms 500]
+                         — debounced poll of raw/session dirs; optional SessionStart hook
+    kb schedule --platform {macos|linux|windows} [--output <file>]
+                         — emit launchd/systemd/task.xml scaffolds
     kb version           — print version
   """
 
@@ -51,6 +55,12 @@ defmodule Kb.CLI do
 
       ["mcp" | _] ->
         Kb.MCP.run()
+
+      ["watch" | rest] ->
+        Kb.Watch.run(rest)
+
+      ["schedule" | rest] ->
+        Kb.Watch.Schedule.run(rest)
 
       ["version" | _] ->
         IO.puts("kb v#{Kb.version()}")
