@@ -30,7 +30,42 @@ defmodule Kb.Init do
       File.write!(config_path, config_template(path))
     end
 
+    # Detect the Obsidian Official CLI (v1.12.0+). If present AND Obsidian
+    # desktop is responding, flip obsidian_cli: true in kb.config.json.
+    maybe_enable_obsidian_cli(config_path)
+
     IO.puts("KB initialized at #{base}/")
+  end
+
+  defp maybe_enable_obsidian_cli(config_path) do
+    case Kb.Obsidian.detect_cli() do
+      {:ok, bin} ->
+        if Kb.Obsidian.running?() do
+          update_config(config_path, fn cfg -> Map.put(cfg, "obsidian_cli", true) end)
+          IO.puts("Obsidian CLI detected at #{bin} — obsidian_cli: true")
+        else
+          IO.puts("Obsidian CLI at #{bin} but desktop app not responding — skipping obsidian_cli")
+        end
+
+      {:error, :unsupported_os} ->
+        :ok
+
+      {:error, :not_found} ->
+        :ok
+    end
+  rescue
+    _ -> :ok
+  end
+
+  defp update_config(config_path, fun) do
+    with {:ok, json} <- File.read(config_path),
+         {:ok, cfg} <- Jason.decode(json) do
+      updated = fun.(cfg)
+      File.write!(config_path, Jason.encode!(updated, pretty: true) <> "\n")
+      :ok
+    else
+      _ -> :ok
+    end
   end
 
   defp index_template do

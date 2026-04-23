@@ -3,30 +3,33 @@ defmodule Kb.CLI do
   CLI entrypoint. Maps commands to modules.
 
   Usage:
-    kb init [path]       — stamp KB directory structure
-    kb add <source>      — ingest a file, directory, or URL
-    kb build             — compile wiki from raw sources
-                           (pass --approve to diff each candidate before staging)
-    kb compile           — alias for kb build
-    kb approve [<name>]  — promote candidates/<name>.md -> concepts/<name>.md
-                           (use --all to bulk promote, --force to overwrite)
-    kb review <page>     — promote a page: draft → reviewed
-    kb verify <page>     — promote a page: reviewed → verified (stamps REVIEWED)
-    kb archive <page>    — archive a page (any state → archived)
-    kb ask <question>    — query the knowledge base
-    kb check             — lint health check
-    kb lint              — alias for kb check
-    kb output <format>   — render wiki as slides, diagram, summary, or graph
-    kb file <path>       — re-ingest an output artifact back into the wiki
-    kb clip              — ingest new files from Web Clipper watch directory
-    kb mcp               — launch MCP stdio server (JSON-RPC 2.0 on stdio)
+    kb init [path]               — stamp KB directory structure
+    kb add <source>              — ingest a file, directory, or URL
+    kb build                     — compile wiki from raw sources
+                                   (pass --approve to diff each candidate before staging)
+    kb compile                   — alias for kb build
+    kb approve [<name>]          — promote candidates/<name>.md -> concepts/<name>.md
+                                   (use --all to bulk promote, --force to overwrite)
+    kb review <page>             — promote a page: draft → reviewed
+    kb verify <page>             — promote a page: reviewed → verified (stamps REVIEWED)
+    kb archive <page>            — archive a page (any state → archived)
+    kb ask <question>            — query the knowledge base
+    kb check                     — lint health check
+    kb lint                      — alias for kb check
+    kb output <format>           — render wiki as slides, diagram, summary, or graph
+    kb file <path>               — re-ingest an output artifact back into the wiki
+    kb clip                      — ingest new files from Web Clipper watch directory
+    kb mcp                       — launch MCP stdio server (JSON-RPC 2.0 on stdio)
     kb ingest --sessions [--agent claude|codex|all]
-                         — mine agent session transcripts into kb/raw/sessions/
+                                 — mine agent session transcripts into kb/raw/sessions/
     kb watch [--hook] [--poll-ms 500]
-                         — debounced poll of raw/session dirs; optional SessionStart hook
+                                 — debounced poll of raw/session dirs; SessionStart hook
     kb schedule --platform {macos|linux|windows} [--output <file>]
-                         — emit launchd/systemd/task.xml scaffolds
-    kb version           — print version
+                                 — emit launchd/systemd/task.xml scaffolds
+    kb obsidian:daily <message>  — append to today's Obsidian daily note
+    kb obsidian:base <query>     — query an Obsidian Base
+    kb obsidian:status           — show Obsidian CLI binary + reachability
+    kb version                   — print version
   """
 
   def main(args) do
@@ -87,6 +90,40 @@ defmodule Kb.CLI do
 
       ["schedule" | rest] ->
         Kb.Watch.Schedule.run(rest)
+
+      ["obsidian:daily" | words] when words != [] ->
+        message = Enum.join(words, " ")
+
+        case Kb.Obsidian.daily_append(message) do
+          :ok -> IO.puts("Appended to daily note.")
+          {:error, reason} -> IO.puts("Obsidian daily:append failed: #{inspect(reason)}")
+        end
+
+      ["obsidian:base" | words] when words != [] ->
+        query = Enum.join(words, " ")
+
+        case Kb.Obsidian.base_query(query) do
+          :ok -> IO.puts("Base query dispatched.")
+          {:error, reason} -> IO.puts("Obsidian base:query failed: #{inspect(reason)}")
+        end
+
+      ["obsidian:status" | _] ->
+        case Kb.Obsidian.status() do
+          {:ok, %{binary: bin, running: true, version: v}} ->
+            IO.puts("Obsidian CLI: #{bin}")
+            IO.puts("Running: yes")
+            IO.puts("Version: #{v}")
+
+          {:ok, %{binary: bin, running: false}} ->
+            IO.puts("Obsidian CLI: #{bin}")
+            IO.puts("Running: no (desktop app not responding)")
+
+          {:error, :unsupported_os} ->
+            IO.puts("Obsidian CLI is unsupported on Windows (v1).")
+
+          {:error, :not_found} ->
+            IO.puts("Obsidian CLI not found on PATH. Falling back to obsidian:// URL scheme.")
+        end
 
       ["version" | _] ->
         IO.puts("kb v#{Kb.version()}")

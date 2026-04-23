@@ -69,6 +69,24 @@ defmodule Kb.Compile do
     manifest
     |> Map.put("last_compiled", DateTime.utc_now() |> DateTime.to_iso8601())
     |> Kb.Manifest.write()
+
+    # Post-compile Obsidian daily log. Errors are swallowed — compile must
+    # never fail because of an optional integration.
+    maybe_log_to_obsidian(length(fresh) + length(stale))
+  end
+
+  defp maybe_log_to_obsidian(page_count) do
+    with {:ok, json} <- File.read("kb.config.json"),
+         {:ok, cfg} <- Jason.decode(json),
+         true <- Map.get(cfg, "obsidian_cli") == true do
+      msg = "KB: compiled #{page_count} pages ([link](kb/))"
+      _ = Kb.Obsidian.daily_append(msg)
+      :ok
+    else
+      _ -> :ok
+    end
+  rescue
+    _ -> :ok
   end
 
   defp read_config do
