@@ -58,6 +58,65 @@ defmodule Kb.MCPTest do
     end
   end
 
+  # ─── KB discovery ───────────────────────────────────────────────────────
+
+  describe "kb_root_with_status/0" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "kb-disco-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+
+      prev_kb_root = System.get_env("KB_ROOT")
+      prev_cwd = File.cwd!()
+
+      on_exit(fn ->
+        File.cd!(prev_cwd)
+        if prev_kb_root, do: System.put_env("KB_ROOT", prev_kb_root), else: System.delete_env("KB_ROOT")
+        File.rm_rf!(tmp)
+      end)
+
+      %{tmp: tmp}
+    end
+
+    test "KB_ROOT pointing at a valid KB returns :found", %{tmp: tmp} do
+      File.mkdir_p!(Path.join(tmp, "kb"))
+      File.write!(Path.join(tmp, "kb/.kb-manifest.json"), "{}")
+      System.put_env("KB_ROOT", tmp)
+
+      assert {root, :found} = MCP.kb_root_with_status()
+      assert root == Path.expand(tmp)
+    end
+
+    test "KB_ROOT pointing at a non-KB dir returns :not_found", %{tmp: tmp} do
+      System.put_env("KB_ROOT", tmp)
+      assert {_, :not_found} = MCP.kb_root_with_status()
+    end
+
+    test "walks up from cwd to find kb/.kb-manifest.json", %{tmp: tmp} do
+      System.delete_env("KB_ROOT")
+      File.mkdir_p!(Path.join(tmp, "kb"))
+      File.write!(Path.join(tmp, "kb/.kb-manifest.json"), "{}")
+
+      # Canonicalize via File.cwd!/0 after cd'ing to the root — handles
+      # macOS's /var → /private/var symlink resolution consistently.
+      File.cd!(tmp)
+      expected = File.cwd!()
+
+      nested = Path.join([tmp, "a", "b", "c"])
+      File.mkdir_p!(nested)
+      File.cd!(nested)
+
+      assert {root, :found} = MCP.kb_root_with_status()
+      assert root == expected
+    end
+
+    test "returns :not_found when no KB anywhere up the tree", %{tmp: tmp} do
+      System.delete_env("KB_ROOT")
+      File.cd!(tmp)
+
+      assert {_, :not_found} = MCP.kb_root_with_status()
+    end
+  end
+
   # ─── Tool registry ──────────────────────────────────────────────────────
 
   describe "Tools.list/0" do

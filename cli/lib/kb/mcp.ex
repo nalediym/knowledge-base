@@ -162,15 +162,70 @@ defmodule Kb.MCP do
   # ─── Path guard ─────────────────────────────────────────────────────────
 
   @doc """
-  Returns the KB root. Prefers `$KB_ROOT`, falls back to `File.cwd!/0`.
+  Returns the KB root.
+
+  Resolution order:
+    1. `$KB_ROOT` if set and non-empty — used verbatim (no walk-up).
+    2. Walk up from `File.cwd!/0` looking for `kb/.kb-manifest.json`.
+       Stops at the filesystem root or `$HOME`.
+    3. Falls back to `File.cwd!/0` if nothing found.
+
+  Use `kb_root_with_status/0` when you need to know whether a KB was
+  actually discovered.
   """
   def kb_root do
+    {root, _status} = kb_root_with_status()
+    root
+  end
+
+  @doc """
+  Returns `{root, :found | :not_found}`. `:not_found` means we fell back
+  to cwd without discovering a `.kb-manifest.json` anywhere above.
+
+  Tool handlers should treat `:not_found` as a hard error rather than
+  operating on a synthesized KB root.
+  """
+  def kb_root_with_status do
     case System.get_env("KB_ROOT") do
-      nil -> File.cwd!()
-      "" -> File.cwd!()
-      path -> path
+      path when is_binary(path) and path != "" ->
+        expanded = Path.expand(path)
+        status = if kb_present?(expanded), do: :found, else: :not_found
+        {expanded, status}
+
+      _ ->
+        cwd = File.cwd!()
+
+        case walk_up_for_manifest(cwd) do
+          {:ok, root} -> {root, :found}
+          :not_found -> {cwd, :not_found}
+        end
     end
-    |> Path.expand()
+  end
+
+  @doc "True if `root` contains `kb/.kb-manifest.json`."
+  def kb_present?(root) do
+    File.exists?(Path.join([root, "kb", ".kb-manifest.json"]))
+  end
+
+  defp walk_up_for_manifest(dir) do
+    dir = Path.expand(dir)
+
+    cond do
+      kb_present?(dir) ->
+        {:ok, dir}
+
+      dir == "/" or dir == "" ->
+        :not_found
+
+      # Don't walk past $HOME — avoids accidentally picking up a KB in a
+      # parent workspace the user didn't intend.
+      (home = System.get_env("HOME")) && dir == Path.expand(home) ->
+        :not_found
+
+      true ->
+        parent = Path.dirname(dir)
+        if parent == dir, do: :not_found, else: walk_up_for_manifest(parent)
+    end
   end
 
   @doc """

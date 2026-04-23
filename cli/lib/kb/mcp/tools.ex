@@ -473,19 +473,28 @@ defmodule Kb.MCP.Tools do
   # Run `fun` with the current process's cwd set to KB_ROOT for the duration
   # of the call. The existing `Kb.*` modules use relative paths like
   # `kb/raw/...`, so we pin cwd rather than refactoring them.
+  #
+  # Refuses with a structured error if no KB was discovered — prevents silent
+  # operation on the wrong directory when Claude Code's workspace has no KB.
   defp in_kb_root(fun) do
-    root = MCP.kb_root()
+    case MCP.kb_root_with_status() do
+      {_root, :not_found} ->
+        {:error,
+         "no KB found (looked up from cwd for kb/.kb-manifest.json). " <>
+           "Run `kb init` in the workspace, or set KB_ROOT to a valid KB directory."}
 
-    case File.cd(root) do
-      :ok ->
-        try do
-          {:ok, fun.()}
-        rescue
-          e -> {:error, "error: #{Exception.message(e)}"}
+      {root, :found} ->
+        case File.cd(root) do
+          :ok ->
+            try do
+              {:ok, fun.()}
+            rescue
+              e -> {:error, "error: #{Exception.message(e)}"}
+            end
+
+          {:error, reason} ->
+            {:error, "could not cd to #{root}: #{inspect(reason)}"}
         end
-
-      {:error, reason} ->
-        {:error, "could not cd to #{root}: #{inspect(reason)}"}
     end
   end
 end

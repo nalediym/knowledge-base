@@ -985,13 +985,13 @@ Useful for exploring big KBs and demoing the moat (chunk citations visible on ho
 
 ### Registration
 
-**Claude Code** (`~/.claude/settings.json` or project `.mcp.json`):
+**Claude Code** (`~/.claude/settings.json` for global, or a project-local `.mcp.json` for per-project):
 
 ```json
 {
   "mcpServers": {
     "kb": {
-      "command": "/usr/local/bin/kb",
+      "command": "/opt/homebrew/bin/kb",
       "args": ["mcp"]
     }
   }
@@ -1000,7 +1000,35 @@ Useful for exploring big KBs and demoing the moat (chunk citations visible on ho
 
 **Claude Desktop** (`claude_desktop_config.json`): same shape.
 
-**Path-traversal guard.** All `path` arguments reject `..`, null bytes, and absolute paths outside `$KB_ROOT` (defaults to cwd). `$KB_ROOT` can be set in the `env` block of the MCP server entry when the KB lives in a known location.
+### KB discovery (2026 convention)
+
+**Do NOT use `${workspaceFolder}` in the `env` block.** Client support for that variable is inconsistent across MCP clients (VS Code issue #251263; open as of April 2026). Per the 2026 MCP best-practices guide, use absolute paths only.
+
+Instead, `kb mcp` discovers the KB on every tool call:
+
+1. If `$KB_ROOT` is set AND contains `kb/.kb-manifest.json` → use it.
+2. Else walk up from the server's process `cwd` looking for `kb/.kb-manifest.json`. Stops at `$HOME` or the filesystem root.
+3. Else: tool calls fail with a structured error (`"no KB found ..."`) — the server **never** silently operates on a synthesized default.
+
+This matches the Obsidian-MCP ecosystem convention (cwd-walk-up or explicit path, no variable expansion) as of April 2026.
+
+**Per-project scoping.** For multi-KB workflows, drop a project-local `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kb": {
+      "command": "/opt/homebrew/bin/kb",
+      "args": ["mcp"],
+      "env": { "KB_ROOT": "/absolute/path/to/this/project" }
+    }
+  }
+}
+```
+
+Absolute path — no shell expansion, no client-specific variables.
+
+**Path-traversal guard.** All `path` arguments reject `..`, null bytes, and absolute paths outside the discovered root.
 
 ### Why this matters
 
