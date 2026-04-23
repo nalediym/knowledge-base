@@ -5,7 +5,9 @@ defmodule Kb.CLI do
   Usage:
     kb init [path]       — stamp KB directory structure
     kb add <source>      — ingest a file, directory, or URL
-    kb build             — compile wiki from raw sources
+    kb build [--ai-siblings]
+                         — compile wiki from raw sources
+                           (--ai-siblings also emits .txt/.json per page)
     kb ask <question>    — query the knowledge base
     kb check             — lint health check
     kb output <format>   — render wiki as slides, diagram, summary, or graph
@@ -23,8 +25,13 @@ defmodule Kb.CLI do
       ["add" | sources] when sources != [] ->
         Enum.each(sources, &Kb.Ingest.run/1)
 
-      ["build" | _] ->
-        Kb.Compile.run()
+      ["build" | rest] ->
+        opts = [ai_siblings: "--ai-siblings" in rest]
+        Kb.Compile.run(opts)
+
+      ["compile" | rest] ->
+        opts = [ai_siblings: "--ai-siblings" in rest]
+        Kb.Compile.run(opts)
 
       ["ask" | words] when words != [] ->
         question = Enum.join(words, " ")

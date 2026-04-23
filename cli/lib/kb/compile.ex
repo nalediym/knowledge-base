@@ -6,10 +6,18 @@ defmodule Kb.Compile do
   extracts concepts with global dedup, and builds the index.
   """
 
-  def run do
+  def run(opts \\ []) do
     case Kb.Manifest.read() do
-      {:ok, manifest} -> compile(manifest)
-      {:error, :no_manifest} -> IO.puts("No KB found. Run `kb init` first.")
+      {:ok, manifest} ->
+        compile(manifest)
+
+        if Keyword.get(opts, :ai_siblings, false) do
+          written = Kb.Output.Ai.write_siblings()
+          IO.puts("Wrote #{length(written)} AI sibling files (.txt + .json)")
+        end
+
+      {:error, :no_manifest} ->
+        IO.puts("No KB found. Run `kb init` first.")
     end
   end
 
