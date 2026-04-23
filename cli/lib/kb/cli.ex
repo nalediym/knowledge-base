@@ -21,7 +21,9 @@ defmodule Kb.CLI do
     kb query <question>          — hybrid retrieval (FTS + embeddings via RRF)
     kb ask <question>            — alias for `kb query`
     kb check                     — lint health check
-    kb lint                      — alias for kb check
+    kb lint [--conflicts [--provider heuristic|ollama|openai|anthropic]]
+                                 — alias for kb check; with --conflicts, runs
+                                   an LLM pass to find contradictions across sources
     kb output <format>           — render wiki as slides, diagram, summary, or graph
     kb graph serve [--port N] [--no-open]
                                  — launch interactive graph viewer (SSE live updates)
@@ -62,9 +64,6 @@ defmodule Kb.CLI do
       ["compile" | rest] ->
         Kb.Compile.run(rest)
 
-      ["lint" | _] ->
-        Kb.Lint.run()
-
       ["review", page | _] ->
         Kb.LifecycleCLI.run(:review, page)
 
@@ -87,6 +86,9 @@ defmodule Kb.CLI do
 
       ["check" | _] ->
         Kb.Lint.run()
+
+      ["lint" | rest] ->
+        run_lint(rest)
 
       ["output" | rest] ->
         format = List.first(rest) || "summary"
@@ -218,5 +220,27 @@ defmodule Kb.CLI do
     wiki_root = Keyword.get(parsed, :wiki_root, "kb/wiki")
 
     [port: port, open?: open?, wiki_root: wiki_root]
+  end
+
+  defp run_lint(args) do
+    cond do
+      "--conflicts" in args ->
+        provider = parse_flag(args, "--provider") || "heuristic"
+        Kb.Conflicts.run(provider: provider)
+
+      args == [] ->
+        Kb.Lint.run()
+
+      true ->
+        IO.puts("Usage: kb lint --conflicts [--provider heuristic|ollama|openai|anthropic]")
+        System.halt(1)
+    end
+  end
+
+  defp parse_flag(args, name) do
+    case Enum.find_index(args, &(&1 == name)) do
+      nil -> nil
+      idx -> Enum.at(args, idx + 1)
+    end
   end
 end
