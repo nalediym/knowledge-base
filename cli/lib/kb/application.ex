@@ -5,7 +5,9 @@ defmodule Kb.Application do
   def start(_type, _args) do
     children = [
       # Ingest worker pool — GenServer per source file
-      {Task.Supervisor, name: Kb.IngestSupervisor}
+      {Task.Supervisor, name: Kb.IngestSupervisor},
+      # Graph viewer pubsub registry (topic fan-out for `kb:graph`)
+      Kb.Graph.PubSub
     ]
 
     opts = [strategy: :one_for_one, name: Kb.Supervisor]

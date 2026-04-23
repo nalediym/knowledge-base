@@ -23,6 +23,8 @@ defmodule Kb.CLI do
     kb check                     — lint health check
     kb lint                      — alias for kb check
     kb output <format>           — render wiki as slides, diagram, summary, or graph
+    kb graph serve [--port N] [--no-open]
+                                 — launch interactive graph viewer (SSE live updates)
     kb file <path>               — re-ingest an output artifact back into the wiki
     kb clip                      — ingest new files from Web Clipper watch directory
     kb mcp                       — launch MCP stdio server (JSON-RPC 2.0 on stdio)
@@ -89,6 +91,14 @@ defmodule Kb.CLI do
       ["output" | rest] ->
         format = List.first(rest) || "summary"
         Kb.Output.run(format)
+
+      ["graph", "serve" | rest] ->
+        opts = parse_graph_serve_opts(rest)
+        Kb.Graph.Server.start(opts)
+
+      ["graph" | _] ->
+        IO.puts("Usage: kb graph serve [--port 4000] [--no-open]")
+        System.halt(1)
 
       ["file" | paths] when paths != [] ->
         Enum.each(paths, &Kb.Output.file_back/1)
@@ -194,5 +204,19 @@ defmodule Kb.CLI do
       "Indexed #{stats.files} files, #{stats.chunks} chunks " <>
         "(reindexed #{stats.reindexed}, embedded #{stats.embedded})."
     )
+  end
+
+  defp parse_graph_serve_opts(args) do
+    {parsed, _rest, _invalid} =
+      OptionParser.parse(args,
+        strict: [port: :integer, open: :boolean, wiki_root: :string],
+        aliases: [p: :port]
+      )
+
+    port = Keyword.get(parsed, :port, 4000)
+    open? = Keyword.get(parsed, :open, true)
+    wiki_root = Keyword.get(parsed, :wiki_root, "kb/wiki")
+
+    [port: port, open?: open?, wiki_root: wiki_root]
   end
 end
