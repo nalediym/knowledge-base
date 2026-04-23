@@ -76,6 +76,58 @@ mix escript.build
 # Binary: ./kb
 ```
 
+### Using KB as an MCP server
+
+`kb mcp` launches a [Model Context Protocol](https://modelcontextprotocol.io/) stdio server exposing 9 tools: `kb_query`, `kb_search`, `kb_list_sources`, `kb_read_page`, `kb_lint`, `kb_ingest`, `kb_compile`, `kb_export`, `kb_dashboard`. Any MCP client (Claude Code, Claude Desktop, Cursor, Cline, Codex) can connect.
+
+The server reads line-delimited JSON-RPC 2.0 from stdin, writes responses to stdout, and logs to stderr. File-path arguments are validated against `$KB_ROOT` (defaults to the working directory); `..` traversal and absolute paths outside the root are rejected.
+
+**Claude Code / Cursor (`.mcp.json` in your project root):**
+
+```json
+{
+  "mcpServers": {
+    "kb": {
+      "command": "/absolute/path/to/knowledge-base/cli/kb",
+      "args": ["mcp"],
+      "env": {
+        "KB_ROOT": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+**Claude Desktop (`claude_desktop_config.json`):**
+
+macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "kb": {
+      "command": "/absolute/path/to/knowledge-base/cli/kb",
+      "args": ["mcp"],
+      "env": {
+        "KB_ROOT": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+After editing, restart the client. The KB tools will appear in the tool picker.
+
+**Quick smoke test:**
+
+```bash
+printf '%s\n%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  | ./cli/kb mcp
+```
+
 ### Required tool permissions
 
 The skill uses: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `Agent`, `WebFetch`, `WebSearch`. Approve these when prompted or add to your allowed tools config.
