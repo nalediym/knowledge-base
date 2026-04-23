@@ -69,6 +69,20 @@ Then invoke with `/knowledge-base` in any project.
 
 The `cli/` directory contains a standalone Elixir CLI for structural operations (chunking, hashing, linting, output rendering). LLM-dependent features (concept extraction, query synthesis, explore-next) require the Claude Code skill.
 
+**One-line install** (recommended — installs Elixir via `mise` if missing, clones, builds, symlinks to `~/.local/bin/kb`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nalediym/knowledge-base/main/scripts/install.sh | bash
+```
+
+**Homebrew** (macOS / Linux, source formula — declares `elixir` + `erlang` as deps):
+
+```bash
+brew install nalediym/kb/kb
+```
+
+**Manual build** (if you already have Elixir):
+
 ```bash
 cd cli
 mix deps.get
