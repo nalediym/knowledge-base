@@ -34,7 +34,12 @@ defmodule Kb.Query do
         IO.puts("## Matching Concepts\n")
 
         Enum.each(concept_matches, fn path ->
-          IO.puts("- #{Path.basename(path, ".md")}")
+          name = Path.basename(path, ".md")
+
+          case read_confidence(path) do
+            nil -> IO.puts("- #{name}")
+            score -> IO.puts("- #{name} (confidence: #{format_score(score)} #{Kb.Confidence.bucket(score)})")
+          end
         end)
       end
 
@@ -53,6 +58,23 @@ defmodule Kb.Query do
     # File the query to index (sanitized, max 20)
     file_query(sanitized)
   end
+
+  defp read_confidence(path) do
+    with {:ok, content} <- File.read(path),
+         "---\n" <> rest <- content,
+         [yaml, _body] <- String.split(rest, "\n---\n", parts: 2),
+         [_, raw] <- Regex.run(~r/(?m)^confidence:\s*(.+)$/, yaml) do
+      case Float.parse(String.trim(raw)) do
+        {f, _} -> f
+        :error -> Kb.Confidence.shim_legacy(raw)
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  defp format_score(s) when is_float(s), do: :erlang.float_to_binary(s, decimals: 2)
+  defp format_score(s), do: to_string(s)
 
   defp sanitize_question(question) do
     question
