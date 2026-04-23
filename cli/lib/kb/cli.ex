@@ -12,6 +12,8 @@ defmodule Kb.CLI do
     kb file <path>       — re-ingest an output artifact back into the wiki
     kb clip              — ingest new files from Web Clipper watch directory
     kb mcp               — launch MCP stdio server (JSON-RPC 2.0 on stdio)
+    kb ingest --sessions [--agent claude|codex|all]
+                         — mine agent session transcripts into kb/raw/sessions/
     kb version           — print version
   """
 
@@ -23,6 +25,9 @@ defmodule Kb.CLI do
 
       ["add" | sources] when sources != [] ->
         Enum.each(sources, &Kb.Ingest.run/1)
+
+      ["ingest" | rest] ->
+        handle_ingest(rest)
 
       ["build" | _] ->
         Kb.Compile.run()
@@ -55,4 +60,29 @@ defmodule Kb.CLI do
         System.halt(1)
     end
   end
+
+  defp handle_ingest(args) do
+    {flags, _rest, _invalid} =
+      OptionParser.parse(args,
+        switches: [sessions: :boolean, agent: :string, dry_run: :boolean],
+        aliases: [a: :agent]
+      )
+
+    cond do
+      Keyword.get(flags, :sessions, false) ->
+        opts =
+          []
+          |> maybe_put(:agent, Keyword.get(flags, :agent))
+          |> maybe_put(:dry_run, Keyword.get(flags, :dry_run))
+
+        KB.Commands.IngestSessions.run(opts)
+
+      true ->
+        IO.puts("Usage: kb ingest --sessions [--agent claude|codex|all] [--dry-run]")
+        System.halt(1)
+    end
+  end
+
+  defp maybe_put(kw, _k, nil), do: kw
+  defp maybe_put(kw, k, v), do: Keyword.put(kw, k, v)
 end

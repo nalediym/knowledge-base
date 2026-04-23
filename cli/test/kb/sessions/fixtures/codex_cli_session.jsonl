@@ -1,0 +1,6 @@
+{"type":"session_meta","timestamp":"2026-04-21T09:00:00.000Z","payload":{"id":"cdx-9876","cwd":"/Users/naleditest/Projects/codex-demo"}}
+{"type":"turn_context","timestamp":"2026-04-21T09:00:00.500Z","payload":{"model":"gpt-5-codex"}}
+{"type":"response_item","timestamp":"2026-04-21T09:00:01.000Z","payload":{"role":"user","type":"message","content":[{"type":"input_text","text":"here is my key sk-ABCDEFGHIJKLMNOPQRSTUVWX please store it"}]}}
+{"type":"response_item","timestamp":"2026-04-21T09:00:03.000Z","payload":{"role":"assistant","type":"message","content":[{"type":"output_text","text":"I will not store secrets. Email me at bob@example.org if you need help."}]}}
+{"type":"response_item","timestamp":"2026-04-21T09:00:04.000Z","payload":{"type":"web_search_call","query":"how to rotate api keys"}}
+{"type":"event_msg","timestamp":"2026-04-21T09:00:05.000Z","payload":{"type":"task_complete"}}
