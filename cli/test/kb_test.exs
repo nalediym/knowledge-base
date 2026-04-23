@@ -2,7 +2,7 @@ defmodule KbTest do
   use ExUnit.Case
   doctest Kb
 
-  test "greets the world" do
-    assert Kb.hello() == :world
+  test "version/0 returns a semver-like string" do
+    assert Kb.version() =~ ~r/^\d+\.\d+\.\d+/
   end
 end

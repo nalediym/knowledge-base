@@ -8,7 +8,8 @@ defmodule Kb.MixProject do
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      escript: escript()
+      escript: escript(),
+      test_ignore_filters: [&String.starts_with?(&1, "test/support/")]
     ]
   end
 
@@ -26,7 +27,9 @@ defmodule Kb.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
-      {:yaml_elixir, "~> 2.11"}
+      {:yaml_elixir, "~> 2.11"},
+      {:plug, "~> 1.16"},
+      {:plug_cowboy, "~> 2.7"}
     ]
   end
 end
