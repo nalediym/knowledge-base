@@ -50,5 +50,8 @@
     "cadence": "daily",
     "time": "04:30",
     "platform": "auto"
+  },
+  "candidates": {
+    "overflow_threshold": 20
   }
 }

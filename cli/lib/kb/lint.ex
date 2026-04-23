@@ -25,7 +25,8 @@ defmodule Kb.Lint do
       {"Marker integrity", &check_markers/1},
       {"Slug collisions", &check_slug_collisions(manifest, &1)},
       {"Generated ratio", &check_generated_ratio(manifest, &1)},
-      {"Orphan images", &check_orphan_images/1}
+      {"Orphan images", &check_orphan_images/1},
+      {"Candidates overflow", &check_candidates_overflow/1}
     ]
 
     results =
@@ -176,6 +177,26 @@ defmodule Kb.Lint do
     end
   rescue
     _ -> {"PASS", 0}
+  end
+
+  defp check_candidates_overflow(_) do
+    count = length(Path.wildcard("kb/wiki/candidates/*.md"))
+    threshold = candidates_overflow_threshold()
+
+    status = if count > threshold, do: "WARN", else: "PASS"
+    {status, count}
+  rescue
+    _ -> {"PASS", 0}
+  end
+
+  defp candidates_overflow_threshold do
+    with {:ok, json} <- File.read("kb.config.json"),
+         {:ok, config} <- Jason.decode(json),
+         %{"candidates" => %{"overflow_threshold" => t}} when is_integer(t) <- config do
+      t
+    else
+      _ -> 20
+    end
   end
 
   defp overall_status("FAIL"), do: "UNHEALTHY"

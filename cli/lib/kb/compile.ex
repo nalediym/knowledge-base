@@ -6,10 +6,14 @@ defmodule Kb.Compile do
   extracts concepts with global dedup, and builds the index.
   """
 
-  def run do
+  def run(args \\ []) do
     case Kb.Manifest.read() do
-      {:ok, manifest} -> compile(manifest)
-      {:error, :no_manifest} -> IO.puts("No KB found. Run `kb init` first.")
+      {:ok, manifest} ->
+        compile(manifest)
+        if "--approve" in args, do: Kb.Approve.print_diffs()
+
+      {:error, :no_manifest} ->
+        IO.puts("No KB found. Run `kb init` first.")
     end
   end
 
