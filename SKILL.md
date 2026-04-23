@@ -37,12 +37,21 @@ Invoke with: `/knowledge-base <mode> [target]`
 
 | Mode | What it does |
 |------|-------------|
-| `init <path>` | Stamp KB directory structure onto a project |
+| `init <path>` | Stamp KB directory structure. Auto-detects Obsidian vaults (walks up for `.obsidian/`). |
 | `ingest <path>` | Index source files from `raw/` or a given directory into the wiki |
-| `compile` | (Re)build the full wiki from raw sources: index, concepts, backlinks |
-| `query <question>` | Research an answer against the wiki, cite sources |
-| `lint` | Health check: staleness, orphans, broken links, hallucination audit |
-| `output <format>` | Render wiki content as slides (Marp), diagrams (Mermaid), or summary |
+| `ingest --sessions` | Mine agent transcripts (`~/.claude/projects/*`, `~/.codex/sessions/*`) into `kb/raw/sessions/` with secret redaction |
+| `compile` | (Re)build the wiki; new concepts land in `candidates/` for review. Options: `--approve`, `--ai-siblings` |
+| `approve [name]` | Promote `candidates/<name>.md` → `concepts/<name>.md` (`--all`, `--force`) |
+| `review <page>` · `verify <page>` · `archive <page>` | Lifecycle transitions (draft → reviewed → verified → stale → archived) |
+| `query <question>` | Hybrid retrieval (SQLite FTS5 + optional Ollama embeddings via RRF). Falls back to grep if no index. |
+| `index [--embeddings]` | Build `kb/.index/search.sqlite` for fast hybrid queries |
+| `lint` / `lint --conflicts` | Health checks; `--conflicts` runs LLM contradiction detection across source claims |
+| `output <format>` | Render as slides (Marp), diagrams (Mermaid), llms.txt, JSON-LD, sitemap, or graph |
+| `graph serve` | Launch interactive graph viewer (Plug+SSE live updates) on localhost |
+| `watch [--hook]` | Debounced poll of raw/session dirs; `--hook` installs a Claude Code SessionStart hook |
+| `schedule --platform {macos\|linux\|windows}` | Emit launchd/systemd/task.xml scaffolds |
+| `mcp` | Launch MCP stdio server exposing 9 `kb_*` tools (see Phase 8) |
+| `obsidian:daily <msg>` · `obsidian:base <query>` · `obsidian:status` | Obsidian Official CLI bridges |
 | `clip` | Ingest new files from Obsidian Web Clipper watch directory |
 
 Default mode (no argument): `lint` on the current project's KB if it exists, else `init`.
@@ -148,7 +157,50 @@ The manifest tracks runtime state only (what's been ingested, when).
     "enabled": false,
     "watch_dir": null,
     "auto_ingest": false
-  }
+  },
+  "ingest": {
+    "sessions": {
+      "agents": ["claude", "codex"]
+    },
+    "redaction": {
+      "extra_patterns": []
+    }
+  },
+  "watch": {
+    "paths": ["kb/raw", "~/.claude/projects"],
+    "debounce_ms": 500,
+    "auto_compile": true,
+    "auto_commit": false
+  },
+  "schedule": {
+    "cadence": "daily",
+    "time": "04:30",
+    "platform": "auto"
+  },
+  "candidates": {
+    "overflow_threshold": 20
+  },
+  "confidence": {
+    "weights": {
+      "sources": 0.25,
+      "quality": 0.25,
+      "recency": 0.25,
+      "crossrefs": 0.25
+    },
+    "decay_tau_days": {
+      "code": 90,
+      "concept": 365,
+      "news": 30,
+      "default": 180
+    }
+  },
+  "lifecycle": {
+    "stale_after_days": 90,
+    "drift_action": "demote"
+  },
+  "in_vault": false,
+  "vault_path": null,
+  "obsidian_cli": false
 }
 ```
 
@@ -158,15 +210,18 @@ it is not ingested.
 
 ### Obsidian Integration (Optional)
 
-After init, check if Obsidian is available:
-```bash
-ls /Applications/Obsidian.app 2>/dev/null || which obsidian 2>/dev/null
-```
+**Vault auto-detection.** On `init`, walk up from cwd looking for `.obsidian/`. If found, ask once: "Place `kb/` inside this vault at `<vault>/kb/`? (Y/n)". If yes, write `kb/` there and set `in_vault: true, vault_path: "<vault>"`. `kb init --yes` accepts defaults; `kb init --no-vault` skips detection.
 
-If found, ask once: "Obsidian detected. Open KB as vault after compile? (Y/n)"
-- If yes: set `obsidian: true` in `kb.config.json`
-- Use standard markdown links everywhere (NOT `[[wikilinks]]`)
-- After compile, run: `open "obsidian://open?vault=$(basename $KB_ROOT)"` on macOS
+**Obsidian Official CLI** (v1.12.0+, on PATH as `obsidian`). On `init`, if the CLI is present AND the desktop app responds, flip `obsidian_cli: true`. After every compile, append a daily-note entry via `obsidian daily:append "KB: compiled N pages"`. Errors are swallowed — compile never fails on optional integration.
+
+Bridge commands exposed:
+- `kb obsidian:daily <message>` → wraps `obsidian daily:append`
+- `kb obsidian:base <query>` → wraps `obsidian base:query` (Obsidian Bases)
+- `kb obsidian:status` → show binary path + reachability
+
+Fallback when CLI missing: `open "obsidian://open?vault=$(basename $KB_ROOT)"` (macOS URL scheme).
+
+Use standard markdown links everywhere (NOT `[[wikilinks]]`) — compatibility with non-Obsidian readers is a feature.
 
 ---
 
@@ -779,3 +834,190 @@ For auto-reindex on raw/ changes (heavier, opt-in):
   }
 }
 ```
+
+---
+
+## Phase 2.5: SESSION TRANSCRIPT INGESTION
+
+`kb ingest --sessions` mines agent transcripts and turns them into regular wiki sources. Runs silently — no prompt required.
+
+**Supported agents** (stub returns `:not_installed` when the path is missing):
+- Claude Code — `~/.claude/projects/*/*.jsonl`
+- Codex CLI — `~/.codex/sessions/**/*.jsonl`, `~/.codex/projects/**/*.jsonl`
+- Gemini CLI, Cursor workspaceStorage, Copilot Chat/CLI — stubbed (framework in place)
+
+**Redaction is non-optional.** Before writing any transcript:
+- `sk-[A-Za-z0-9]{20,}` → `[REDACTED_API_KEY]`
+- `ghp_[A-Za-z0-9]{36}` → `[REDACTED_GH_TOKEN]`
+- Named credentials (`api_key`, `token`, `bearer`, `password`, `secret`) → `[REDACTED_CREDENTIAL]`
+- Email addresses → `[REDACTED_EMAIL]`
+- Literal `$USER` (from environment) → `USER`
+- Plus any regex in `ingest.redaction.extra_patterns`
+
+**Output:** `kb/raw/sessions/<project-slug>/YYYY-MM-DD-<first-8-of-session-id>.md` with frontmatter `source_type: session, agent, project, session_id, model`.
+
+Session sources flow through the normal compile pipeline — they become wiki pages under `sources/` and participate in concept extraction, backlinks, confidence, and lifecycle.
+
+---
+
+## Phase 3.5: CANDIDATES / APPROVAL
+
+Compile no longer writes new concepts directly to `kb/wiki/concepts/`. New concepts land in `kb/wiki/candidates/` for human review. Existing concepts are updated in place.
+
+- `kb compile --approve` — prints per-candidate diff against any existing concept (marked `NEW` when none), then stages.
+- `kb approve <name>` — move `candidates/<name>.md` → `concepts/<name>.md`. Refuses if target exists (`--force` overrides).
+- `kb approve --all` — bulk-promote; skips collisions.
+- Lint warns when `candidates/` > `candidates.overflow_threshold` (default 20) — inbox overflow signal.
+
+**Why:** prevents LLM-extracted concepts from silently overwriting human-edited ones. The moat is the `<!-- human notes below -->` marker + REVIEWED `[sha256:]` tag; candidates/ is its staging lane.
+
+---
+
+## Phase 5.5: LIFECYCLE + CONFIDENCE
+
+Every wiki page carries `lifecycle` and `confidence` frontmatter. Both evolve over time — compile sweeps both on every run.
+
+### Lifecycle (5-state machine)
+
+```
+draft ──kb review──→ reviewed ──kb verify──→ verified
+                      │                          │
+                      │           (hash drift) ──┘
+                      │                          ↓
+                      └──(90d unvisited)────→ stale ──kb archive──→ archived
+```
+
+- `kb review <page>` — draft → reviewed
+- `kb verify <page>` — reviewed → verified; stamps `REVIEWED [sha256:<body-hash>]`
+- `kb archive <page>` — any → archived
+- Compile auto-demotes pages older than `lifecycle.stale_after_days` (default 90) to `stale`.
+- Drift: if a `verified` page's body hashes differently than its `REVIEWED` stamp, demote to `reviewed` (or lint-warn, per `lifecycle.drift_action`).
+- Pages without `lifecycle:` frontmatter are treated as `draft` and backfilled on first compile.
+
+### Confidence (4-factor with Ebbinghaus decay)
+
+Replaces the old `confidence: high|medium|low` string with numeric `0.0–1.0`:
+
+```
+confidence = w_s · log(sources + 1)
+           + w_q · avg(source_quality)
+           + w_r · exp(-age_days / τ)
+           + w_x · log(backlinks + 1)
+```
+
+Weights and τ per content-type are config-driven (see `kb.config.json`). Legacy string values shim to 0.85/0.55/0.25 on first compile. `kb query` surfaces the score in answer metadata. `kb lint` flags concepts with confidence < 0.3.
+
+### Contradictions (`kb lint --conflicts`)
+
+Runs per concept page: compare extracted claims across its referenced sources. Flags disagreements.
+
+- Providers: `heuristic` (no-network default — keyword overlap + negation detection + antonym pairs + numeric disagreement), `ollama`, `openai`, `anthropic`. Configure via `--provider`.
+- Only scans pages in `reviewed` or `verified` lifecycle.
+- Output: `kb/output/contradictions-YYYY-MM-DD.md` with chunk IDs on both sides of each flagged claim.
+
+---
+
+## Phase 4.5: HYBRID RETRIEVAL
+
+`kb query` uses a SQLite FTS5 index + optional Ollama embeddings, merged via reciprocal-rank fusion. Build it first:
+
+```bash
+kb index                # FTS5 only — runs locally, no network
+kb index --embeddings   # adds Ollama embeddings (nomic-embed-text) when 11434 is reachable
+kb index --include-raw  # also index kb/raw/ (default: wiki only)
+```
+
+Incremental via mtime — only changed files are reprocessed. Falls back to grep when `kb/.index/search.sqlite` is missing, so fresh vaults work before first index.
+
+RRF formula: `score = Σ 1 / (k + rank_i)` with `k = 60`. Per-page hits from FTS and semantic tables are merged — each contributes independently. Query output marks the source (`[fts 0.0163 ...]` vs `[semantic ...]`).
+
+**Escript caveat:** the `exqlite` NIF isn't bundled into a bare escript. When running `./kb query` as an escript, FTS falls back to grep with a one-line notice. For full hybrid retrieval, invoke via `mix run -e 'Kb.CLI.main(["query", "..."])'` or use the MCP server (which runs under Mix).
+
+---
+
+## Phase 6.5: AI-CONSUMABLE EXPORTS
+
+For public-facing KBs or agent-consumer interop:
+
+| Command | Writes | Purpose |
+|---|---|---|
+| `kb output llms-txt` | `kb/output/llms.txt` | llmstxt.org-spec index (H1 title, blockquote summary, H2 sections) |
+| `kb output llms-full` | `kb/output/llms-full.txt` | Flattened all pages, 5 MB cap |
+| `kb output jsonld` | `kb/output/graph.jsonld` | schema.org graph (`DefinedTerm` / `CreativeWork` / `CollectionPage`) |
+| `kb output sitemap` | `kb/output/sitemap.xml` | `<loc>` + `<lastmod>` from mtime |
+| `kb output all` | all four | — |
+| `kb build --ai-siblings` | `.txt` + `.json` next to every wiki `.md` | Per-page AI artifacts |
+
+The `.json` siblings include `{path, title, category, frontmatter, summary, lastmod, body, chunks}` — one-shot consumable by other agents.
+
+---
+
+## Phase 7.5: GRAPH VIEWER
+
+`kb graph serve [--port 4000] [--no-open]` starts a local Plug+Cowboy server at `http://localhost:4000` with an interactive source↔concept graph. SVG + hand-rolled force layout, no CDN dependencies.
+
+- Node coloring by type (source=blue, concept=green, candidate=yellow, stale=gray).
+- Hover → chunk-citation tooltip.
+- Click → open file via `open`/`xdg-open`.
+- Live updates: SSE stream at `/events` pushes deltas when `kb watch` or compile publishes to the `kb:graph` PubSub topic.
+
+Useful for exploring big KBs and demoing the moat (chunk citations visible on hover).
+
+---
+
+## Phase 8: MCP SERVER
+
+`kb mcp` launches a Model Context Protocol stdio server exposing the KB to any MCP-capable client (Claude Code, Claude Desktop, Cursor, Cline, Codex, Continue). JSON-RPC 2.0 over stdio, stderr for logs.
+
+### Tools (9)
+
+| Tool | Args | Returns |
+|---|---|---|
+| `kb_query` | `question`, `max_pages?` | Answer + page refs + chunk citations |
+| `kb_search` | `term`, `include_raw?` | Matching pages with snippets |
+| `kb_list_sources` | `project?` | All ingested sources + metadata |
+| `kb_read_page` | `path` (path-traversal guarded) | Page content + frontmatter |
+| `kb_lint` | — | Health scorecard JSON |
+| `kb_ingest` | `path` | Ingest result (file count, slug map) |
+| `kb_compile` | `dry_run?` | Compile summary |
+| `kb_export` | `format` (llms-txt, jsonld, marp, mermaid) | Rendered artifact or path |
+| `kb_dashboard` | — | Counts by type / lifecycle / confidence |
+
+### Registration
+
+**Claude Code** (`~/.claude/settings.json` or project `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "kb": {
+      "command": "/usr/local/bin/kb",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Claude Desktop** (`claude_desktop_config.json`): same shape.
+
+**Path-traversal guard.** All `path` arguments reject `..`, null bytes, and absolute paths outside `$KB_ROOT` (defaults to cwd). `$KB_ROOT` can be set in the `env` block of the MCP server entry when the KB lives in a known location.
+
+### Why this matters
+
+Without the MCP server, Claude has to invoke `/knowledge-base` as a skill and re-read SKILL.md every session. With `kb mcp`, the 9 tools are available as first-class MCP calls — faster, stateless, composable with other MCP servers (Obsidian, GitHub, filesystem), and queryable from non-Anthropic clients.
+
+---
+
+## Phase 9: WATCH + SCHEDULE
+
+For auto-ingest of new raw sources and agent transcripts:
+
+- `kb watch [--poll-ms 500]` — GenServer that polls `kb/raw/` + session dirs with debounce. On settle, calls `kb ingest` per changed file.
+- `kb watch --hook` — installs a Claude Code SessionStart hook in `~/.claude/settings.json` that runs `kb ingest --sessions` at session start. Idempotent; backs up the file once before modifying.
+- `kb schedule --platform macos` — emits a `launchd.plist` scaffold.
+- `kb schedule --platform linux` — emits a `systemd.service` + `.timer` pair.
+- `kb schedule --platform windows` — emits a Task Scheduler `task.xml` + install command.
+
+Time window from `schedule.time` in `kb.config.json` (default `04:30`).
+
+Watch is the "set and forget" story for keeping KB fresh: new agent sessions → redacted → wiki. No manual re-ingest.
