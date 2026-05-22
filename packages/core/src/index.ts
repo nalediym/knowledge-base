@@ -7,3 +7,4 @@ export * from './lifecycle-sweep.ts';
 export * from './contracts.ts';
 export * from './confidence.ts';
 export * from './frontmatter.ts';
+export * from './watch.ts';
