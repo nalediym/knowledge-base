@@ -69,6 +69,7 @@ adapters first because they unblock everything else.
 
 > Trimmed when stale. Last refreshed 2026-05-22.
 
+- **PR #15** — docs(readme): reposition KB as a context manager for AI agents (honest scope)
 - **PR #10** — docs(todos): capture KB reposition + hypha migration plan
 - **PR #9** — docs(readme): document brew tap oven-sh/bun prereq
 - **PR #8** — fix(brew): qualify bun dep so brew can auto-tap oven-sh/bun
