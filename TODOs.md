@@ -24,12 +24,20 @@ KB is no longer "just a wiki." The new framing is a **state-of-the-art
 context manager** for AI agents and code sessions, applying current
 context-engineering techniques. Everything below hangs off this.
 
-- [ ] Rewrite the SKILL.md / README pitch around context engineering (current
-      framing buries the lede: "LLM-compiled knowledge base" → should lead
-      with the agent/session value)
-- [ ] Define the surface: which MCP tools, which CLI commands, which
-      session hooks. Today KB has `kb_*` MCP tools + session ingest; that
-      becomes one face of a bigger system.
+- [x] Rewrite the README pitch around context engineering — PR #15
+- [x] Define the agent surface (skill / MCP / CLI / session ingest) — PR #15
+- [ ] **SKILL.md audit + rewrite** — phase content (Phases 2.5/3/3.5/5.5/8/9 +
+      Modes table) describes behaviors that don't fully match package code.
+      Tracked in [#14](https://github.com/nalediym/knowledge-base/issues/14)
+      with 10 pre-listed codex findings.
+- [ ] **Close README↔code gaps** — the rewrite revealed a skill ↔ package
+      delta: MCP tool behaviors, CLI parity, lifecycle/confidence auto-wiring,
+      sanitization. 24 findings tracked in
+      [#13](https://github.com/nalediym/knowledge-base/issues/13) with
+      suggested code-fix splits in the body.
+- [ ] **Chunk-ID stability rethink** — `sha256(content)` changes on any edit,
+      breaking citations across normal revisions. Five options enumerated in
+      [#12](https://github.com/nalediym/knowledge-base/issues/12).
 
 ### D. Migrate hypha capabilities into knowledge-base
 
