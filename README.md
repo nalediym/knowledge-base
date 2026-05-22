@@ -55,10 +55,11 @@ curl -fsSL https://raw.githubusercontent.com/nalediym/knowledge-base/main/script
 **Homebrew** (macOS / Linux):
 
 ```bash
+brew tap oven-sh/bun           # one-time: bun isn't in homebrew-core
 brew install nalediym/kb/kb
 ```
 
-The formula installs `bun` as a dependency and ships the workspace under `libexec/`. `kb` is a thin shell wrapper around `bun packages/cli/src/bin.ts`.
+The formula declares `bun` (from `oven-sh/bun`) as a dependency and ships the workspace under `libexec/`. `kb` is a thin shell wrapper around `bun packages/cli/src/bin.ts`.
 
 **Manual** (if you already have Bun ≥ 1.3):
 
