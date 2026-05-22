@@ -1,13 +1,5 @@
 #!/usr/bin/env bun
-import { VERSION } from '@kb/core';
+import { run } from './index.ts';
 
-const args = Bun.argv.slice(2);
-
-if (args[0] === '--version' || args[0] === '-v') {
-  console.log(VERSION);
-  process.exit(0);
-}
-
-console.log(`kb ${VERSION}`);
-console.log('usage: kb <command> [args]');
-process.exit(0);
+const result = await run(Bun.argv.slice(2));
+process.exit(result.exitCode);

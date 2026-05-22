@@ -8,6 +8,9 @@
     "kb": "./src/bin.ts"
   },
   "dependencies": {
-    "@kb/core": "workspace:*"
+    "@kb/adapters": "workspace:*",
+    "@kb/core": "workspace:*",
+    "@kb/inferrers": "workspace:*",
+    "@kb/mcp": "workspace:*"
   }
 }
