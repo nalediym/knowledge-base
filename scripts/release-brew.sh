@@ -52,7 +52,7 @@ sed -i '' \
 # Verify the edit took
 grep -q "version \"${VERSION}\"" "$FORMULA_PATH" || die "version substitution failed"
 grep -q "sha256 \"${SHA}\""       "$FORMULA_PATH" || die "sha256 substitution failed"
-grep -q "REPLACE_WITH_SHA256"     "$FORMULA_PATH" && die "placeholder still present — refusing to ship"
+grep -q "REPLACE_WITH_RELEASE_SHA256" "$FORMULA_PATH" && die "placeholder still present — refusing to ship"
 git -C "$REPO_ROOT" --no-pager diff -- packaging/homebrew/Formula/kb.rb || true
 
 # 4. Find the tap clone

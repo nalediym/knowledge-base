@@ -1,0 +1,16 @@
+{
+  "name": "@kb/cli",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "bin": {
+    "kb": "./src/bin.ts"
+  },
+  "dependencies": {
+    "@kb/adapters": "workspace:*",
+    "@kb/core": "workspace:*",
+    "@kb/inferrers": "workspace:*",
+    "@kb/mcp": "workspace:*"
+  }
+}

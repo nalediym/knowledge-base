@@ -1,115 +1,85 @@
 # knowledge-base
 
-LLM-compiled knowledge base skill for [Claude Code](https://claude.ai/code) and [OpenCode](https://github.com/opencode-ai/opencode).
+LLM-compiled knowledge base skill for [Claude Code](https://claude.ai/code) and [OpenCode](https://github.com/opencode-ai/opencode), plus a Bun/TypeScript CLI + MCP server.
 
 Ingest raw sources, compile them into an interlinked markdown wiki, then query, lint, and output against it. Inspired by [Andrej Karpathy's LLM Knowledge Base pattern](https://x.com/karpathy/status/2039805659525644595).
 
 ## What it does
 
 ```
-raw sources (docs, code, URLs, directories, clips) -> LLM compiles from raw files -> markdown wiki -> query / lint / output
+raw sources (docs, code, URLs, directories, sessions) -> LLM compiles -> markdown wiki -> query / lint / output
 ```
 
-**7 modes:**
+**Core flow:**
 
 | Mode | Skill | CLI | What it does |
 |------|-------|-----|-------------|
 | Init | `init <path>` | `kb init [path]` | Stamp KB directory structure onto a project |
-| Ingest | `ingest <path>` | `kb add <source>` | Copy sources to `kb/raw/`, create summary pages, update manifest |
-| Compile | `compile` | `kb build` | (Re)build wiki from raw files: re-chunk, extract concepts, build index |
-| Query | `query <question>` | `kb ask <question>` | Research an answer against the wiki with chunk citations |
-| Lint | `lint` | `kb check` | Health scorecard: 16 checks including staleness, orphans, broken links, missing provenance, generated ratio |
-| Output | `output <format>` | `kb output <format>` | Render as Marp slides, Mermaid diagrams, concept graph, or summary |
-| Clip | `clip` | `kb clip` | Ingest new files from Obsidian Web Clipper watch directory |
+| Ingest | `ingest <path>` | `kb add <source>` / `kb ingest <source>` | Copy sources to `kb/raw/`, create summary pages, update manifest |
+| Sessions | `ingest --sessions` | `kb ingest --sessions [--agent claude\|codex\|all]` | Mine agent transcripts with secret redaction |
+| Compile | `compile` | (skill — full compile uses an LLM) | (Re)build wiki from raw files |
+| Query | `query <question>` | (skill) | Research an answer with chunk citations |
+| Lint | `lint --conflicts` | `kb lint --conflicts` | Cross-source contradiction detection (heuristic or LLM) |
+| Output | `output <format>` | `kb output <llms-txt\|llms-full\|jsonld\|sitemap\|all>` | Render AI-consumable exports |
+| Watch | `watch` | `kb watch` | Debounced poll of `kb/raw/` → ingest |
+| MCP | `mcp` | `kb mcp` | Launch stdio MCP server (9 `kb_*` tools) |
 
-Additional CLI commands: `kb file <path>` (re-ingest output back into wiki), `kb version`.
-
-**Default behavior** (no arguments): runs `lint` if a KB exists (detected by `kb/.kb-manifest.json`), otherwise runs `init`.
-
-### Supported source types
-
-| Type | What happens |
-|------|-------------|
-| Local file | Copied to `kb/raw/` with path-based slug, source summary created |
-| Directory | Recursively indexes files matching `config.sources.include` globs |
-| URL | Fetched via WebFetch, saved as `.md` in `kb/raw/` (skill only) |
-| Raw text / clipboard | Saved as timestamped `.md` in `kb/raw/` |
-| Web Clipper | Scanned from `clipper.watch_dir`, ingested via standard pipeline |
-
-Bulk ingest launches parallel subagents for source page creation, with a single atomic manifest write to prevent conflicts.
+**Default behavior** (no arguments): `kb` prints help; the skill runs `lint` if a KB exists, otherwise `init`.
 
 ## Install
 
-### Claude Code
+### Claude Code skill
 
 ```bash
-# Clone and symlink (recommended)
 git clone https://github.com/nalediym/knowledge-base.git
 ln -sf "$(pwd)/knowledge-base" ~/.claude/skills/knowledge-base
 ```
 
-Or copy directly:
+Then invoke with `/knowledge-base` in any project.
 
-```bash
-git clone https://github.com/nalediym/knowledge-base.git
-mkdir -p ~/.claude/skills/knowledge-base
-cp knowledge-base/SKILL.md ~/.claude/skills/knowledge-base/
-```
-
-### OpenCode
+### OpenCode skill
 
 ```bash
 git clone https://github.com/nalediym/knowledge-base.git
 ln -sf "$(pwd)/knowledge-base" ~/.opencode/skills/knowledge-base
 ```
 
-Then invoke with `/knowledge-base` in any project.
+### CLI (Bun)
 
-### Elixir CLI
-
-The `cli/` directory contains a standalone Elixir CLI for structural operations (chunking, hashing, linting, output rendering). LLM-dependent features (concept extraction, query synthesis, explore-next) require the Claude Code skill.
-
-**One-line install** (recommended — installs Elixir via `mise` if missing, clones, builds, symlinks to `~/.local/bin/kb`):
+**One-line install** (installs Bun via `bun.sh/install` if missing, clones the repo, drops a `kb` launcher into `~/.local/bin`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nalediym/knowledge-base/main/scripts/install.sh | bash
 ```
 
-**Homebrew** (macOS / Linux, source formula — declares `elixir` + `erlang` as deps):
+**Homebrew** (macOS / Linux):
 
 ```bash
 brew install nalediym/kb/kb
 ```
 
-**Manual build** (if you already have Elixir):
+The formula installs `bun` as a dependency and ships the workspace under `libexec/`. `kb` is a thin shell wrapper around `bun packages/cli/src/bin.ts`.
+
+**Manual** (if you already have Bun ≥ 1.3):
 
 ```bash
-cd cli
-mix deps.get
-mix escript.build
-# Binary: ./kb
+git clone https://github.com/nalediym/knowledge-base.git
+cd knowledge-base
+bun install
+./packages/cli/src/bin.ts --version   # => kb v0.3.0
 ```
 
-**Note on hybrid retrieval (`kb index` / `kb query`):** these commands use
-SQLite FTS5 via the `exqlite` NIF. Default escripts don't bundle NIF `priv/`
-directories, so when invoked through `./kb`, FTS-backed queries fall back to
-the legacy grep path with a one-line notice. To exercise the full indexed
-path, run through Mix instead:
+Add `bun packages/cli/src/bin.ts` to your PATH however you prefer.
 
-```bash
-cd cli
-mix run -e 'Kb.CLI.main(["index"])'
-mix run -e 'Kb.CLI.main(["query", "your question"])'
-```
+### Required tool permissions (skill)
 
-A fully bundled single-binary distribution (via Burrito or Bakeware) is
-tracked as a follow-up — not required for the default grep/skill workflows.
+The skill uses: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `Agent`, `WebFetch`, `WebSearch`. Approve these when prompted or add to your allowed tools config.
 
-### Using KB as an MCP server
+## Using KB as an MCP server
 
-`kb mcp` launches a [Model Context Protocol](https://modelcontextprotocol.io/) stdio server exposing 9 tools: `kb_query`, `kb_search`, `kb_list_sources`, `kb_read_page`, `kb_lint`, `kb_ingest`, `kb_compile`, `kb_export`, `kb_dashboard`. Any MCP client (Claude Code, Claude Desktop, Cursor, Cline, Codex) can connect.
+`kb mcp` launches a [Model Context Protocol](https://modelcontextprotocol.io/) stdio server exposing 9 tools: `kb_query`, `kb_search`, `kb_list_sources`, `kb_read_page`, `kb_lint`, `kb_ingest`, `kb_compile`, `kb_export`, `kb_dashboard`.
 
-The server reads line-delimited JSON-RPC 2.0 from stdin, writes responses to stdout, and logs to stderr. File-path arguments are validated against `$KB_ROOT` (defaults to the working directory); `..` traversal and absolute paths outside the root are rejected.
+The server reads line-delimited JSON-RPC 2.0 from stdin, writes responses to stdout, and logs to stderr. File-path arguments are validated against `$KB_ROOT` (defaults to walking up from cwd for `kb/.kb-manifest.json`, capped at `$HOME`); `..` traversal and absolute paths outside the root are rejected.
 
 **Claude Code / Cursor (`.mcp.json` in your project root):**
 
@@ -117,7 +87,7 @@ The server reads line-delimited JSON-RPC 2.0 from stdin, writes responses to std
 {
   "mcpServers": {
     "kb": {
-      "command": "/absolute/path/to/knowledge-base/cli/kb",
+      "command": "kb",
       "args": ["mcp"],
       "env": {
         "KB_ROOT": "/absolute/path/to/your/project"
@@ -136,7 +106,7 @@ Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 {
   "mcpServers": {
     "kb": {
-      "command": "/absolute/path/to/knowledge-base/cli/kb",
+      "command": "kb",
       "args": ["mcp"],
       "env": {
         "KB_ROOT": "/absolute/path/to/your/project"
@@ -154,12 +124,8 @@ After editing, restart the client. The KB tools will appear in the tool picker.
 printf '%s\n%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-  | ./cli/kb mcp
+  | kb mcp
 ```
-
-### Required tool permissions
-
-The skill uses: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `Agent`, `WebFetch`, `WebSearch`. Approve these when prompted or add to your allowed tools config.
 
 ## Directory structure
 
@@ -170,11 +136,13 @@ kb/
   raw/              # Original source documents (user-managed, never LLM-edited)
     media/          # Downloaded images referenced by sources
     generated/      # Re-ingested output artifacts (see Output Re-ingestion)
+    sessions/       # Agent session transcripts (one .md per session, per project)
   wiki/             # LLM-compiled articles (LLM-managed)
-    index.md        # Master index: Sources, Concepts, Uncategorized Claims, Recent Queries
+    index.md        # Master index — auto-maintained
     concepts/       # One .md per concept (only concepts appearing in 2+ sources)
+    candidates/     # New concept candidates pending approval
     sources/        # One .md per ingested source (chunks, key claims, related concepts)
-  output/           # Generated artifacts (slides, diagrams, reports, concept graphs)
+  output/           # Generated artifacts (llms.txt, jsonld, sitemap, reports)
   .kb-manifest.json # Runtime state: ingested files, timestamps, hashes
   .kb-lock          # Transient lock file for concurrent write protection
 kb.config.json      # Single source of truth for all configuration
@@ -182,98 +150,89 @@ kb.config.json      # Single source of truth for all configuration
 
 ## Design principles
 
-- **Content-addressed chunk provenance** -- every factual claim cites `source.md#c-XXXXXXXX` where the chunk ID is the first 8 chars of the sha256 of the chunk content. IDs are stable across insertions, reorderings, and minor edits.
-- **Compile reads raw files, not cached summaries** -- source pages are intermediate artifacts. Compile re-reads `kb/raw/` to prevent stale-summary propagation.
-- **Filesystem is source of truth** -- works with any editor. Obsidian is an optional viewer, not a dependency.
-- **Standard markdown** -- no `[[wikilinks]]`, no proprietary syntax. Ingested content is sanitized (HTML stripped, marker strings escaped, dangerous URIs removed).
-- **Hallucination guard** -- the LLM cannot synthesize claims absent from raw source chunks. Prompt-level policy; always verify surprising claims against raw sources.
-- **Manifest locking** -- file-based lock (`kb/.kb-lock`) with PID, timestamp, and 5-minute stale threshold prevents corruption from concurrent sessions.
-- **Token-aware** -- compile estimates token usage before starting. Batches with a global merge pass if wiki exceeds `max_context_tokens` (default 200K).
-- **Edit protection** -- every wiki page has a generated zone (rewritten on compile) and a human zone (never touched), separated by `<!-- human notes below -->`. `**REVIEWED** [sha256:XXXX]` tags include a content hash that lint checks for drift.
-- **Singleton facts preserved** -- claims appearing in only 1 source are listed in the index under "Uncategorized Claims" with source citations. Nothing is silently dropped.
-- **Path-based slugs** -- files from different directories get unique slugs (`docs--README.md` vs `src--auth--README.md`). No collisions.
+- **Content-addressed chunk provenance** — every factual claim cites `source.md#c-XXXXXXXX` where the chunk ID is the first 8 chars of the sha256 of the chunk content. IDs are stable across insertions, reorderings, and minor edits.
+- **Compile reads raw files, not cached summaries** — source pages are intermediate artifacts. Compile re-reads `kb/raw/` to prevent stale-summary propagation.
+- **Filesystem is source of truth** — works with any editor. Obsidian is an optional viewer, not a dependency.
+- **Standard markdown** — no `[[wikilinks]]`, no proprietary syntax. Ingested content is sanitized (HTML stripped, marker strings escaped, dangerous URIs removed).
+- **Hallucination guard** — the LLM cannot synthesize claims absent from raw source chunks. Prompt-level policy; always verify surprising claims against raw sources.
+- **Manifest locking** — file-based lock (`kb/.kb-lock`) with PID, timestamp, and 5-minute stale threshold prevents corruption from concurrent sessions.
+- **Edit protection** — every wiki page has a generated zone (rewritten on compile) and a human zone (never touched), separated by `<!-- human notes below -->`.
+- **Singleton facts preserved** — claims appearing in only 1 source are listed in the index under "Uncategorized Claims" with source citations. Nothing is silently dropped.
+- **Path-based slugs** — files from different directories get unique slugs (`docs--README.md` vs `src--auth--README.md`). No collisions.
+- **Secret redaction** — session-transcript ingest strips API keys (`sk-…`), GitHub tokens (`ghp_…`), named credentials, emails, and `$USER` before writing to disk.
 
 ## Features
 
-### Image support
+### Session transcript ingest
 
-When `images.download` is true, ingesting sources with image references will:
-- Download images to `kb/raw/media/` (local files only in CLI; URLs via skill)
-- Rewrite markdown image links to point to local paths
-- Skip images exceeding `images.max_size_mb` (default 10MB)
-- During compile, multimodal LLMs extract descriptions from images as alt-text
+`kb ingest --sessions` walks installed agent stores and writes one markdown page per session under `kb/raw/sessions/<project>/<date>-<slug>.md` with redacted content. Supported agents (auto-detected):
 
-Supported formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`
+| Agent | Store | Notes |
+|-------|-------|-------|
+| Claude Code | `~/.claude/projects/<encoded-cwd>/<session>.jsonl` | Text + tool_use blocks; thinking blocks dropped |
+| Codex CLI | `~/.codex/sessions/**/*.jsonl`, `~/.codex/projects/**/*.jsonl` | Normalized to user/assistant pairs |
+| Cursor | `~/Library/Application Support/Cursor/User/workspaceStorage` | Detected only — parse pending |
 
-### Explore-Next suggestions
+Each transcript gets YAML frontmatter (`source_type: session`, `agent`, `project`, `session_id`, `started_at`, `model`, `source_path`) and a numbered turn-by-turn body.
 
-After every query answer, the skill generates 3-5 follow-up questions based on:
-- Gaps in the KB's coverage of the topic
-- Thin concepts with low confidence or few sources
-- Unlinked connections between related concepts
-- Contradictions worth investigating
-- Stale sources that may have newer data
+### Contradiction detection
 
-Every query "adds up" -- each answer opens doors to deeper exploration.
+`kb lint --conflicts` walks every concept page, pulls Key Claims bullets from each referenced source page, pairs claims across different sources, and asks a `ClaimComparator` whether they disagree. Output lands at `kb/output/contradictions-YYYY-MM-DD.md`.
 
-### Missing data imputation
+Two comparators ship in the box:
 
-When `impute.enabled` is true, lint identifies low-confidence concepts and searches the web for corroborating data. Findings are presented as **proposals** (never auto-ingested). Imputed sources are flagged `needs-review` and excluded from confidence scoring.
+- **Heuristic** (default, no network): topic-overlap gate → antonym table → negation asymmetry → numeric disagreement.
+- **LLM** (`llmComparator(provider)`): wraps any `LLMProvider` from `@kb/llm` (Anthropic, Ollama, OpenAI). Pluggable per call.
+
+Lifecycle gating skips pages with `lifecycle: draft` on either the concept or source side.
+
+### AI-consumable exports
+
+`kb output <format>` renders the wiki for other agents:
+
+- `llms-txt` — short index per [llmstxt.org](https://llmstxt.org), grouped by category, with summaries
+- `llms-full` — flattened plain text of every page (capped at 5 MB, truncated cleanly)
+- `jsonld` — schema.org JSON-LD `@graph` with `kb://` IDs and `isRelatedTo` cross-links
+- `sitemap` — XML sitemap with `<lastmod>` from filesystem mtime
+- `all` — write all four
+
+### Watch
+
+`kb watch` polls `kb/raw/` every 500 ms (configurable), diffs mtimes against a baseline, and triggers ingest after a debounce window of quiet. No native fs-events dependency — keeps the binary portable.
+
+### Hybrid retrieval
+
+The `@kb/store-sqlite` package combines SQLite FTS5 (porter + unicode61) and `sqlite-vec` embeddings via Reciprocal Rank Fusion (k=60, pool=4×limit). Embeddings live as raw Float32 BLOBs queryable across arbitrary dimensions. Default embedding provider is Ollama (`nomic-embed-text`); Anthropic and OpenAI providers ship too.
+
+### Contextual retrieval
+
+The Anthropic Sept 2024 [contextual retrieval](https://www.anthropic.com/news/contextual-retrieval) pattern is in `@kb/llm/contextualize`: per-chunk LLM call with the whole document threaded through `cache_control`, returns a 50–100 token situating prefix prepended before indexing.
+
+### Lifecycle + sweep
+
+Pages move through `draft → reviewed → verified → stale → archived` via frontmatter. `@kb/core/lifecycle-sweep` advances pages automatically based on age and confidence thresholds.
 
 ### Output re-ingestion
 
-After generating output (slides, diagrams, summaries), you can file it back into the wiki:
-- `kb file <path>` copies the output to `kb/raw/generated/` with a `generated--` prefix
-- Generated sources are excluded from confidence scoring (prevents hallucination amplification)
-- Lint warns if generated sources exceed 30% of total sources
+After generating output (slides, diagrams, summaries), you can file it back into the wiki via the skill: copies to `kb/raw/generated/` with a `generated--` prefix. Generated sources are excluded from confidence scoring (prevents hallucination amplification). Lint warns if generated ratio exceeds 30%.
 
-Your explorations and queries "add up" in the knowledge base.
+### Obsidian (optional)
 
-### Obsidian Web Clipper integration
+At `init` time, the skill checks for Obsidian on macOS. If found, it asks once whether to enable Obsidian integration. If you say yes, `obsidian: true` is set in `kb.config.json` and the skill opens results via the `obsidian://` URI scheme after compile/output. No CLI dependency, no paid license required.
 
-Clip web pages directly into your KB while browsing:
-1. Install the [Obsidian Web Clipper](https://obsidian.md/clipper) browser extension
-2. Configure it to save to a folder (e.g., `~/obsidian-vault/clipped/`)
-3. Set `clipper.watch_dir` and `clipper.enabled: true` in `kb.config.json`
-4. Run `kb clip` to ingest new clips
+## Architecture
 
-Web Clipper preserves rich metadata (title, author, date, source URL) as YAML frontmatter, and downloads images locally. The `auto_ingest` option scans the clipper directory automatically before each compile.
+Bun monorepo at the repo root, packages connected via Bun workspaces:
 
-## Obsidian (optional)
-
-At `init` time, the skill checks for Obsidian on macOS (`/Applications/Obsidian.app`). If found, it asks once whether to enable Obsidian integration. If you say yes:
-- `obsidian` is set to `true` in `kb.config.json` (the single config source)
-- After `compile` and `output`, the skill opens the result via `obsidian://` URI scheme
-- No CLI dependency, no paid license required
-- All links remain standard markdown (not `[[wikilinks]]`)
-
-## Maintenance hooks (optional)
-
-Add to `~/.claude/settings.json` for automatic KB maintenance:
-
-**Post-commit reminder:**
-```json
-{
-  "hooks": {
-    "post-commit": [{
-      "type": "command",
-      "command": "if [ -d kb/ ] && [ -f kb/.kb-manifest.json ]; then echo 'KB: run /knowledge-base lint to check freshness'; fi"
-    }]
-  }
-}
-```
-
-**Auto-detect new raw sources:**
-```json
-{
-  "hooks": {
-    "post-tool-use:Write": [{
-      "type": "command",
-      "command": "if echo '$TOOL_INPUT' | grep -q 'kb/raw/'; then echo 'KB: new raw source detected -- run /knowledge-base ingest'; fi"
-    }]
-  }
-}
-```
+| Package | Purpose |
+|---------|---------|
+| `@kb/core` | Types, chunking, manifest+locking, lifecycle state machine + sweep, confidence scoring, frontmatter, Adapter/Inferrer contracts, fs watcher |
+| `@kb/store-sqlite` | `bun:sqlite` + `sqlite-vec` + FTS5 hybrid retrieval with RRF |
+| `@kb/adapters` | Markdown source adapter; session adapters (claude-code, codex, cursor) + redactor + renderer |
+| `@kb/llm` | LLM/Embedding interfaces, mocks, Anthropic/Ollama/OpenAI providers, `contextualizeChunk` |
+| `@kb/inferrers` | `compile` (contextual retrieval pipeline), `candidates` (approval workflow), `conflicts` (contradiction detection), `exports` (AI-consumable formats) |
+| `@kb/mcp` | Stdio JSON-RPC 2.0 MCP server, `KB_ROOT` path guard, 9 `kb_*` tools |
+| `@kb/cli` | `kb` command — wires all the above into a single binary |
 
 ## Composability
 
@@ -284,12 +243,11 @@ Pairs well with other Claude Code skills:
 | `/research` | Feed evidence receipts into KB as sources |
 | `/build-mode` | Query KB for architecture decisions before building |
 | `/cleanup-mode` | Run `lint` as part of session cleanup |
-| `/gstack-learn` | Sync learnings into KB as sources |
 | `/gstack-retro` | Retro findings become KB sources |
 
 ## Configuration
 
-Drop a `kb.config.json` in your project root to customize behavior. `init` creates one from defaults if missing. See [kb.config.json](kb.config.json) for the default config.
+Drop a `kb.config.json` in your project root to customize behavior. `init` creates one from defaults if missing.
 
 Key settings:
 
@@ -302,43 +260,39 @@ Key settings:
 | `images.download` | `true` | Download and localize images during ingest |
 | `images.max_size_mb` | `10` | Skip images larger than this |
 | `impute.enabled` | `false` | Enable web search for missing data during lint |
-| `impute.max_searches` | `5` | Max web searches per lint run |
 | `clipper.enabled` | `false` | Enable Obsidian Web Clipper integration |
 | `clipper.watch_dir` | `null` | Path to Web Clipper output folder |
-| `clipper.auto_ingest` | `false` | Auto-scan clipper dir before compile |
 
 ## Example
 
 The `example/` directory shows a complete before/after:
-- `example/raw/` -- two source docs (auth design + API guidelines)
-- `example/kb/wiki/sources/` -- compiled source pages with content-addressed chunk IDs, verbatim excerpts, and `<!-- human notes below -->` markers
-- `example/kb/wiki/concepts/` -- extracted concepts with full `#c-XXXXXXXX` provenance on every claim, `**REVIEWED**` tag with content hash
-- `example/kb/wiki/index.md` -- auto-generated index with Mermaid concept graph and "Uncategorized Claims" section for singleton facts (CSRF, error format, versioning)
+- `example/raw/` — two source docs (auth design + API guidelines)
+- `example/kb/wiki/sources/` — compiled source pages with content-addressed chunk IDs and `<!-- human notes below -->` markers
+- `example/kb/wiki/concepts/` — extracted concepts with full `#c-XXXXXXXX` provenance on every claim
+- `example/kb/wiki/index.md` — auto-generated index
 
 ## Known limitations
 
-- **Concurrency:** Single-threaded per Claude Code session. Manifest locking (`kb/.kb-lock`) prevents corruption from concurrent sessions with a 5-minute stale threshold.
-- **Scale:** Index-based retrieval works to ~500 sources. Beyond that, proper search is needed.
-- **Trust model:** Hallucination guard is prompt-level, not a runtime guarantee.
-- **Images:** Description extraction depends on multimodal LLM capability. SVGs are stored but not described. Large images (> `max_size_mb`) are skipped. URL image download requires the Claude Code skill (CLI handles local images only).
-- **Imputation:** Web search results are proposals only, never auto-ingested. Disabled by default. Quality depends on search result relevance.
-- **Re-ingestion loops:** Generated sources are excluded from confidence scoring. Lint warns if generated ratio exceeds 30%.
-- **Web Clipper:** Requires manual `kb clip` unless `auto_ingest` is enabled. Watch directory must be set in config.
+- **Concurrency:** Single-threaded per Claude Code session. Manifest locking (`kb/.kb-lock`) prevents corruption with a 5-minute stale threshold.
+- **Scale:** Hybrid retrieval works to ~10K chunks comfortably. Backlinks are recomputed in-memory; stream-based migration tracked in [#1](https://github.com/nalediym/knowledge-base/issues/1).
+- **Trust model:** Hallucination guard and secret redaction are prompt/regex-level, not runtime guarantees. Verify surprising claims against raw sources.
+- **Cursor sessions:** Detected but not parsed (stored in SQLite, not JSONL).
+- **URL ingest:** The CLI's `kb_ingest` MCP tool returns a "use the skill" message for `http(s)://` paths.
 
 ## Roadmap
 
-- **Phase 2 (in progress):** Elixir CLI (`cli/`) provides structural operations. LLM-dependent features (concept extraction, query synthesis) still require the Claude Code skill.
-- **Phase 3:** Adapters for PDFs, DOCX, notebooks, issue trackers.
-- **Phase 4:** Review governance (pending claims, conflict resolution, team workflows).
+- **v0.4 (in progress):** Graph viewer (live SSE), schedule (launchd/systemd), Obsidian Web Clipper auto-ingest port.
+- **v0.5:** Cursor SQLite session parser, Gemini CLI + GitHub Copilot adapters.
+- **v0.6:** Review governance (pending claims, team workflows).
 
 ## Prior art
 
-- [Khoj AI](https://github.com/khoj-ai/khoj) -- self-hosted second brain (retrieval, not compilation)
-- [library-mcp](https://github.com/lethain/library-mcp) -- MCP server for markdown knowledge bases
-- [Microsoft MarkItDown](https://github.com/microsoft/markitdown) -- document-to-markdown converter (good ingest layer)
-- [Obsidian Web Clipper](https://obsidian.md/clipper) -- browser extension for clipping web pages as markdown
+- [Khoj AI](https://github.com/khoj-ai/khoj) — self-hosted second brain (retrieval, not compilation)
+- [library-mcp](https://github.com/lethain/library-mcp) — MCP server for markdown knowledge bases
+- [Microsoft MarkItDown](https://github.com/microsoft/markitdown) — document-to-markdown converter (good ingest layer)
+- [Obsidian Web Clipper](https://obsidian.md/clipper) — browser extension for clipping web pages as markdown
 
-The novel value here is the **compilation step** -- transforming raw docs into an interlinked, deduplicated wiki with provenance. Existing tools do retrieval or conversion, not synthesis.
+The novel value here is the **compilation step** — transforming raw docs into an interlinked, deduplicated wiki with provenance. Existing tools do retrieval or conversion, not synthesis.
 
 ## License
 
