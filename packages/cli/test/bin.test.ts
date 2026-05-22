@@ -109,10 +109,11 @@ describe('kb cli — init + ingest + lint + output', () => {
     expect(stdout).toMatch(/wrote .*llms\.txt/);
   });
 
-  test('lint without --conflicts exits 1', async () => {
+  test('lint without --conflicts runs the page-count scorecard', async () => {
     await runBin(['init'], tmp);
-    const { exitCode } = await runBin(['lint'], tmp);
-    expect(exitCode).toBe(1);
+    const { exitCode, stdout } = await runBin(['lint'], tmp);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('advisory threshold');
   });
 
   test('ingest with no KB exits 1', async () => {
