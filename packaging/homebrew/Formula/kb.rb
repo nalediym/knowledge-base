@@ -1,37 +1,34 @@
 class Kb < Formula
-  desc "LLM-compiled knowledge base — CLI + Claude Code skill"
+  desc "LLM-compiled knowledge base — CLI + Claude Code skill (Bun/TS)"
   homepage "https://github.com/nalediym/knowledge-base"
   # Update `url`, `sha256`, and `version` at each release tag.
   # Compute sha256 with:
   #   curl -sL https://github.com/nalediym/knowledge-base/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
-  url "https://github.com/nalediym/knowledge-base/archive/refs/tags/v0.2.0.tar.gz"
-  version "0.2.0"
-  sha256 "550ca41f96521255d1eabe03def913fef74713c41392ea3679d5d4d7b7b26bb1"
+  url "https://github.com/nalediym/knowledge-base/archive/refs/tags/v0.3.0.tar.gz"
+  version "0.3.0"
+  sha256 "REPLACE_WITH_RELEASE_SHA256"
   license "MIT"
   head "https://github.com/nalediym/knowledge-base.git", branch: "main"
 
-  depends_on "elixir"
-  depends_on "erlang"
+  depends_on "bun"
 
   def install
-    cd "cli" do
-      # Let mix use a writable cache inside the build dir
-      ENV["MIX_HOME"] = buildpath/".mix"
-      ENV["HEX_HOME"] = buildpath/".hex"
-      ENV["MIX_ENV"] = "prod"
+    # Install workspace deps and ship the whole tree under libexec so the
+    # symlinked package paths inside packages/* resolve at runtime.
+    system "bun", "install", "--frozen-lockfile"
+    libexec.install Dir["*"]
 
-      system "mix", "local.hex",   "--force"
-      system "mix", "local.rebar", "--force"
-      system "mix", "deps.get"
-      system "mix", "escript.build"
-
-      bin.install "kb"
-    end
+    # Launcher that defers to bun + the workspace entry point.
+    (bin/"kb").write <<~SH
+      #!/usr/bin/env bash
+      exec bun "#{libexec}/packages/cli/src/bin.ts" "$@"
+    SH
+    (bin/"kb").chmod 0755
 
     # Ship the skill markdown alongside the binary so users can symlink it
     # into ~/.claude/skills/ without re-cloning.
-    pkgshare.install "SKILL.md"
-    pkgshare.install "README.md"
+    pkgshare.install libexec/"SKILL.md" if (libexec/"SKILL.md").exist?
+    pkgshare.install libexec/"README.md" if (libexec/"README.md").exist?
   end
 
   test do

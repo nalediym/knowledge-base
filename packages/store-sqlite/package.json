@@ -1,6 +1,6 @@
 {
   "name": "@kb/store-sqlite",
-  "version": "0.3.0-dev",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

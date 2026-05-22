@@ -28,7 +28,7 @@ describe('kb cli — flat commands', () => {
   test('--version prints the version', async () => {
     const { stdout, exitCode } = await runBin(['--version']);
     expect(exitCode).toBe(0);
-    expect(stdout.trim()).toBe('kb v0.3.0-dev');
+    expect(stdout.trim()).toBe('kb v0.3.0');
   });
 
   test('help is shown for no args', async () => {

@@ -1,4 +1,4 @@
-export const VERSION = '0.3.0-dev';
+export const VERSION = '0.3.0';
 
 export * from './chunk.ts';
 export * from './manifest.ts';

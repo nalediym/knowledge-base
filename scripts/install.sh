@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# kb — one-shot installer. Idempotent.
+# kb — one-shot installer for the Bun/TS port. Idempotent.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/nalediym/knowledge-base/main/scripts/install.sh | bash
-#   KB_REF=v0.1.0 curl -fsSL ... | bash   # pin to a tag
+#   KB_REF=v0.3.0 curl -fsSL ... | bash   # pin to a tag
 #   KB_PREFIX=~/.local curl -fsSL ... | bash   # override install prefix
 set -euo pipefail
 
@@ -11,27 +11,21 @@ REPO="${KB_REPO:-https://github.com/nalediym/knowledge-base.git}"
 REF="${KB_REF:-main}"
 SHARE_DIR="${KB_SHARE:-$HOME/.local/share/kb}"
 BIN_DIR="${KB_BIN:-$HOME/.local/bin}"
-ELIXIR_VERSION="${KB_ELIXIR:-1.17.3-otp-27}"
 
 say() { printf "\033[1;36m[kb]\033[0m %s\n" "$*"; }
 die() { printf "\033[1;31m[kb: fail]\033[0m %s\n" "$*" >&2; exit 1; }
 
-# 1. Elixir toolchain — use whatever the user has, else install via mise.
-if command -v elixir >/dev/null 2>&1; then
-  say "using existing elixir: $(elixir --version | head -n1)"
+# 1. Bun runtime — install if missing.
+if command -v bun >/dev/null 2>&1; then
+  say "using existing bun: $(bun --version)"
 else
-  if ! command -v mise >/dev/null 2>&1; then
-    say "installing mise (for elixir/erlang)"
-    curl -fsSL https://mise.run | sh
-    export PATH="$HOME/.local/bin:$PATH"
-  fi
-  say "installing elixir ${ELIXIR_VERSION} via mise"
-  mise use -g "elixir@${ELIXIR_VERSION}"
-  eval "$(mise activate bash)" 2>/dev/null || true
+  say "installing bun"
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="$HOME/.bun/bin:$PATH"
 fi
 
-command -v elixir >/dev/null 2>&1 || die "elixir not on PATH after install — open a new shell and re-run"
-command -v git    >/dev/null 2>&1 || die "git is required"
+command -v bun >/dev/null 2>&1 || die "bun not on PATH after install — open a new shell and re-run"
+command -v git >/dev/null 2>&1 || die "git is required"
 
 # 2. Fetch / update the repo.
 mkdir -p "$(dirname "$SHARE_DIR")"
@@ -46,20 +40,18 @@ else
   git -C "$SHARE_DIR" checkout -q "$REF"
 fi
 
-# 3. Build the escript.
-say "building escript"
-cd "$SHARE_DIR/cli"
-mix local.hex    --force --if-missing >/dev/null 2>&1 || mix local.hex    --force
-mix local.rebar  --force --if-missing >/dev/null 2>&1 || mix local.rebar  --force
-mix deps.get
-MIX_ENV=prod mix escript.build
+# 3. Install workspace deps.
+say "installing workspace deps"
+(cd "$SHARE_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
 
-[ -x ./kb ] || die "escript build did not produce ./kb"
-
-# 4. Symlink onto PATH.
+# 4. Drop a launcher onto PATH.
 mkdir -p "$BIN_DIR"
-ln -sf "$SHARE_DIR/cli/kb" "$BIN_DIR/kb"
-say "linked $BIN_DIR/kb -> $SHARE_DIR/cli/kb"
+cat > "$BIN_DIR/kb" <<EOF
+#!/usr/bin/env bash
+exec bun "$SHARE_DIR/packages/cli/src/bin.ts" "\$@"
+EOF
+chmod +x "$BIN_DIR/kb"
+say "wrote $BIN_DIR/kb -> bun $SHARE_DIR/packages/cli/src/bin.ts"
 
 # 5. PATH sanity check.
 case ":$PATH:" in
@@ -74,12 +66,10 @@ esac
 cat <<EOF
 
 kb installed.
-  binary : $BIN_DIR/kb
-  repo   : $SHARE_DIR ($(git -C "$SHARE_DIR" rev-parse --short HEAD))
+  launcher : $BIN_DIR/kb
+  repo     : $SHARE_DIR ($(git -C "$SHARE_DIR" rev-parse --short HEAD))
 
 Next:
   kb init .        # in any project
-  kb --help        # full command list
-
-FTS5 hybrid retrieval needs to run via Mix (see README for the mix-run command).
+  kb help          # full command list
 EOF
