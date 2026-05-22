@@ -18,16 +18,6 @@ source of truth — kept in sync with merged work.
 
 ## Open
 
-### A. Publish the v0.3.0 Homebrew tap
-
-The formula `sha256` is in-repo (`packaging/homebrew/Formula/kb.rb`, `c2f57b6`)
-but the tap repo still serves the v0.2.0 formula.
-
-- [ ] Run `scripts/release-brew.sh 0.3.0` — copies the formula into the
-      `nalediym/homebrew-kb` clone, commits + pushes the tap
-- [ ] Smoke test: `brew update && brew reinstall nalediym/kb/kb && kb version`
-      should report `kb v0.3.0`
-
 ### B. Backlog (not yet scoped)
 
 - Per-source confidence calibration tuning (4-factor + Ebbinghaus decay shipped
@@ -43,6 +33,7 @@ but the tap repo still serves the v0.2.0 formula.
 
 > Trimmed when stale. Last refreshed 2026-05-22.
 
+- **PR #8** — fix(brew): qualify bun dep so brew can auto-tap oven-sh/bun
 - **PR #6** — `kb lint` page-count scorecard. Closes the "trigger to act"
   path from issue #1.
 - **PR #5** — Post-TS-cutover cleanup. Dropped `NOTES.md` (stale) and the
