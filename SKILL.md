@@ -778,8 +778,10 @@ The 24h expiry is too long for admin endpoints. We should use 1h for /admin/*.
 - **Concurrency:** Claude Code runs single-threaded per session. Bulk ingest uses
   parallel subagents for source page creation but serializes manifest writes via
   `kb/.kb-lock`. Do not run `/knowledge-base compile` while another session is ingesting.
-- **Scale:** The index-based retrieval works well up to ~500 sources. Beyond that,
-  the index itself becomes a bottleneck. Phase 2 (Elixir CLI) will add proper search.
+- **Scale:** SQLite FTS5 + optional embeddings cover the realistic personal-use range
+  (sub-10K pages comfortably). The pure-functional backlink pass and all-pages-in-memory
+  rewrite become bottlenecks past ~10K pages; see issue #1 for the streaming-backlinks
+  migration plan.
 - **Singleton facts:** Important one-off claims (CSRF config, error formats) stay in
   source pages and the "uncategorized claims" index section, but don't get concept
   pages. Query mode can still find them via source pages.
@@ -931,7 +933,7 @@ Incremental via mtime — only changed files are reprocessed. Falls back to grep
 
 RRF formula: `score = Σ 1 / (k + rank_i)` with `k = 60`. Per-page hits from FTS and semantic tables are merged — each contributes independently. Query output marks the source (`[fts 0.0163 ...]` vs `[semantic ...]`).
 
-**Escript caveat:** the `exqlite` NIF isn't bundled into a bare escript. When running `./kb query` as an escript, FTS falls back to grep with a one-line notice. For full hybrid retrieval, invoke via `mix run -e 'Kb.CLI.main(["query", "..."])'` or use the MCP server (which runs under Mix).
+The TypeScript port uses Bun's built-in `bun:sqlite` plus `sqlite-vec`, so FTS and semantic search both work out of the box — no NIF/escript caveats. Falls back to grep when `kb/.index/search.sqlite` is missing.
 
 ---
 
