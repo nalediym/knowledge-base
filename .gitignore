@@ -22,3 +22,9 @@ kb/.kb-lock
 # OS
 .DS_Store
 Thumbs.db
+
+# TypeScript / Bun
+node_modules/
+dist/
+bun.lockb
+*.tsbuildinfo
