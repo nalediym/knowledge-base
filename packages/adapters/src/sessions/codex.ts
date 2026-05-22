@@ -79,8 +79,8 @@ export const codexAdapter: SessionAdapter = {
         project: projectSlug(cwd, path),
         sessionId,
         sourcePath: path,
-        startedAt,
-        model,
+        ...(startedAt !== undefined ? { startedAt } : {}),
+        ...(model !== undefined ? { model } : {}),
         messages,
         metadata: { recordCount: records.length },
       },
@@ -121,17 +121,18 @@ function recordToMessages(r: Record<string, unknown>): SessionMessage[] {
   const content = payload['content'];
   const ts = typeof r['timestamp'] === 'string' ? (r['timestamp'] as string) : undefined;
 
+  const tsField = ts !== undefined ? { timestamp: ts } : {};
   if (role === 'user' && itemType === 'message') {
     const text = codexContentText(content, 'input_text');
-    return text ? [{ role: 'user', content: text, timestamp: ts }] : [];
+    return text ? [{ role: 'user', content: text, ...tsField }] : [];
   }
   if (role === 'assistant' && itemType === 'message') {
     const text = codexContentText(content, 'output_text');
-    return text ? [{ role: 'assistant', content: text, timestamp: ts }] : [];
+    return text ? [{ role: 'assistant', content: text, ...tsField }] : [];
   }
   if (itemType === 'web_search_call') {
     const query = String(payload['query'] ?? '');
-    return [{ role: 'assistant', content: `\`[tool: WebSearch]\` ${query}`, timestamp: ts }];
+    return [{ role: 'assistant', content: `\`[tool: WebSearch]\` ${query}`, ...tsField }];
   }
   return [];
 }

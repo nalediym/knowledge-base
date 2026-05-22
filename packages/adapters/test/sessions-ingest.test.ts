@@ -83,7 +83,6 @@ describe('ingestSessions', () => {
     await writeManifest(tmp, newManifest('test-kb'));
     const result = await ingestSessions({
       kbRoot: tmp,
-      adapter: undefined,
       agent: 'claude_code',
       adapters: [fakeAdapter], // none alias to claude_code
     });

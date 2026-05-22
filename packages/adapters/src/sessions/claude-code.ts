@@ -72,8 +72,8 @@ export const claudeCodeAdapter: SessionAdapter = {
         project: projectSlugFromPath(path, cwd),
         sessionId,
         sourcePath: path,
-        startedAt,
-        model,
+        ...(startedAt !== undefined ? { startedAt } : {}),
+        ...(model !== undefined ? { model } : {}),
         messages,
         metadata: {
           subagent: isSubagent(path),
@@ -117,12 +117,14 @@ function recordToMessages(r: Record<string, unknown>): SessionMessage[] {
   const message = msg as { content?: unknown; model?: unknown };
   const text = extractText(message.content);
   if (!text) return [];
+  const ts = typeof r['timestamp'] === 'string' ? (r['timestamp'] as string) : undefined;
+  const mdl = typeof message.model === 'string' ? message.model : undefined;
   return [
     {
       role: type as 'user' | 'assistant',
       content: text,
-      timestamp: typeof r['timestamp'] === 'string' ? (r['timestamp'] as string) : undefined,
-      model: typeof message.model === 'string' ? message.model : undefined,
+      ...(ts !== undefined ? { timestamp: ts } : {}),
+      ...(mdl !== undefined ? { model: mdl } : {}),
     },
   ];
 }
