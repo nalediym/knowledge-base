@@ -18,7 +18,40 @@ source of truth — kept in sync with merged work.
 
 ## Open
 
-### B. Backlog (not yet scoped)
+### C. Reposition KB as a context manager for AI agents (umbrella)
+
+KB is no longer "just a wiki." The new framing is a **state-of-the-art
+context manager** for AI agents and code sessions, applying current
+context-engineering techniques. Everything below hangs off this.
+
+- [ ] Rewrite the SKILL.md / README pitch around context engineering (current
+      framing buries the lede: "LLM-compiled knowledge base" → should lead
+      with the agent/session value)
+- [ ] Define the surface: which MCP tools, which CLI commands, which
+      session hooks. Today KB has `kb_*` MCP tools + session ingest; that
+      becomes one face of a bigger system.
+
+### D. Migrate hypha capabilities into knowledge-base
+
+`nalediym/hypha` is paused and its features fold in here. The hypha repo
+stays online (unarchived) until each piece migrates. Order is rough —
+adapters first because they unblock everything else.
+
+- [ ] **Adapters** — fold `gmail-mbox`, `google-drive-folder`,
+      `google-calendar-ics`, `google-takeout`, `notion-export`, `dogsheep`
+      from `hypha/packages/adapters/*` into `kb/packages/adapters/`
+- [ ] **Identity resolver** — Fellegi-Sunter probabilistic record linkage
+      from `hypha/packages/inferrers/identity-resolver` → KB inferrer
+- [ ] **DLP scanner** — merge with KB's existing `redactor.ts`; hypha's
+      pattern set is more thorough
+- [ ] **Bitemporal graph** — "what did we know when" semantics from hypha's
+      `store-sqlite`; evaluate vs. KB's current confidence + lifecycle
+- [ ] **memify inferrer** — review and port if it survives the
+      context-manager pitch
+- [ ] Update hypha's README banner once each piece lands, with a link to
+      the corresponding KB commit/PR
+
+### E. Backlog (not yet scoped)
 
 - Per-source confidence calibration tuning (4-factor + Ebbinghaus decay shipped
   in `88ba7f6` — collect real-world feedback before retuning)
@@ -26,6 +59,9 @@ source of truth — kept in sync with merged work.
 - More inferrer types beyond contradictions (claim-strength, citation-recency)
 - Streaming-backlinks migration (issue #1) — gated by the page-count scorecard;
   do nothing until a real KB trips the warning
+- Context-engineering primitives the rewrite probably needs: token-budget
+  manager, retrieval ranker tuned for agent prompts, eviction/refresh policies,
+  attention-aware summarization, scratchpad/working-memory layer
 
 ---
 
