@@ -6,7 +6,7 @@ class Kb < Formula
   #   curl -sL https://github.com/nalediym/knowledge-base/archive/refs/tags/vX.Y.Z.tar.gz | shasum -a 256
   url "https://github.com/nalediym/knowledge-base/archive/refs/tags/v0.3.0.tar.gz"
   version "0.3.0"
-  sha256 "REPLACE_WITH_RELEASE_SHA256"
+  sha256 "b797fd760a0f065621d0607b2897c4c542fd8e0d0e6b274b29b212dffd6fdf03"
   license "MIT"
   head "https://github.com/nalediym/knowledge-base.git", branch: "main"
 
