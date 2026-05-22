@@ -10,7 +10,9 @@ class Kb < Formula
   license "MIT"
   head "https://github.com/nalediym/knowledge-base.git", branch: "main"
 
-  depends_on "bun"
+  # `bun` is not in homebrew-core. The qualified `<user>/<repo>/<formula>`
+  # form lets `brew install` auto-tap oven-sh/bun on first run.
+  depends_on "oven-sh/bun/bun"
 
   def install
     # Install workspace deps and ship the whole tree under libexec so the
