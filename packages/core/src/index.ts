@@ -6,3 +6,4 @@ export * from './lifecycle.ts';
 export * from './lifecycle-sweep.ts';
 export * from './contracts.ts';
 export * from './confidence.ts';
+export * from './frontmatter.ts';

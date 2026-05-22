@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 import {
@@ -109,6 +109,27 @@ export const markdownAdapter: Adapter = {
     if (st.isFile()) {
       return [await ingestFile(target, ctx)];
     }
-    throw new Error(`directory ingest not implemented yet: ${target}`);
+    if (st.isDirectory()) {
+      const files = walkMarkdown(target);
+      const out: IngestResult[] = [];
+      for (const f of files) {
+        out.push(await ingestFile(f, ctx));
+      }
+      return out;
+    }
+    return [];
   },
 };
+
+function walkMarkdown(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...walkMarkdown(full));
+    } else if (entry.isFile() && full.toLowerCase().endsWith('.md')) {
+      out.push(full);
+    }
+  }
+  return out;
+}

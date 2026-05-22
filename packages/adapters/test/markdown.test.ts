@@ -52,4 +52,26 @@ describe('markdown adapter', () => {
     expect(pageBody).toContain('**Hash:**');
     expect(pageBody).toContain('<!-- human notes below -->');
   });
+
+  test('ingests every .md file in a directory recursively', async () => {
+    writeSource('notes/a.md', '# A\n\n## one\n\nbody.\n');
+    writeSource('notes/sub/b.md', '# B\n\n## two\n\nbody.\n');
+    writeSource('notes/sub/skip.txt', 'not markdown\n');
+
+    const results = await markdownAdapter.ingest(join(tmp, 'notes'), { kbRoot: tmp });
+
+    expect(results).toHaveLength(2);
+    const slugs = results.map((r) => r.source.slug).sort();
+    expect(slugs[0]).toMatch(/a\.md$/);
+    expect(slugs[1]).toMatch(/b\.md$/);
+  });
+
+  test('canHandle returns false for files that do not exist', () => {
+    expect(markdownAdapter.canHandle(join(tmp, 'does-not-exist.md'))).toBe(false);
+  });
+
+  test('canHandle returns false for non-markdown files', () => {
+    const txt = writeSource('notes/not-md.txt', 'hello');
+    expect(markdownAdapter.canHandle(txt)).toBe(false);
+  });
 });
