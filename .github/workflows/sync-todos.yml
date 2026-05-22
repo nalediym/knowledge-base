@@ -1,0 +1,52 @@
+name: sync-todos
+
+# Hook-style automation: when a PR merges to main, rewrite TODOs.md so the
+# project's rolling next-up list stays in sync without anyone touching it.
+#
+# What it does
+#   - Appends an entry to "## Recently Shipped" with the merged PR's number
+#     and title.
+#   - If the PR body contains `Closes-TODO: <slug>` lines, removes any
+#     matching `### …` section from "## Open".
+#   - Trims "## Recently Shipped" to the 10 most recent entries.
+#   - Updates the "Last refreshed YYYY-MM-DD" stamp.
+#   - Commits with `[skip ci]` so this workflow doesn't recurse on its own
+#     push.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Rewrite TODOs.md
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/sync-todos.mjs
+
+      - name: Commit and push (if changed)
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if git diff --quiet TODOs.md; then
+            echo "TODOs.md unchanged — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TODOs.md
+          git commit -m "chore: sync TODOs.md for PR #${PR_NUMBER} [skip ci]"
+          git push origin main

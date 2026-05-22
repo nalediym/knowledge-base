@@ -3,9 +3,16 @@
 Next actionable steps for the `knowledge-base` project. This file is the single
 source of truth — kept in sync with merged work.
 
-> **Maintenance rule.** This file is updated in the same PR that finishes a TODO
-> (or the very next housekeeping PR). When asking Claude "what's next?", it
-> should rewrite this file as part of closing out the work, not leave it stale.
+> **Maintenance.** This file is kept current automatically by the
+> `sync-todos` GitHub Action (see `.github/workflows/sync-todos.yml`).
+> Every merged PR is appended to **Recently Shipped**. To also remove an
+> open item, add a line to the PR body:
+>
+> ```
+> Closes-TODO: <substring of the ### heading>
+> ```
+>
+> e.g. `Closes-TODO: Homebrew tap` removes the matching `### A.` section.
 
 ---
 
