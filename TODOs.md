@@ -33,6 +33,7 @@ source of truth — kept in sync with merged work.
 
 > Trimmed when stale. Last refreshed 2026-05-22.
 
+- **PR #9** — docs(readme): document brew tap oven-sh/bun prereq
 - **PR #8** — fix(brew): qualify bun dep so brew can auto-tap oven-sh/bun
 - **PR #6** — `kb lint` page-count scorecard. Closes the "trigger to act"
   path from issue #1.
