@@ -2,8 +2,10 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   addSource,
+  countWikiPages,
   createWatcher,
   newManifest,
+  pageCountCheck,
   readManifest,
   VERSION,
   writeManifest,
@@ -28,7 +30,9 @@ commands:
   ingest <path>            Same as add
   ingest --sessions        Ingest agent session transcripts
                             [--agent claude|codex|all] [--dry-run]
-  lint [--conflicts]       Run cross-source contradiction detection
+  lint [--conflicts]       Default: page-count scorecard (advisory threshold
+                            for the streaming-backlinks migration, issue #1).
+                            --conflicts: LLM contradiction detection.
   output <format>          Render: llms-txt | llms-full | jsonld | sitemap | all
   watch                    Debounced poll of kb/raw → ingest
   mcp                      Start the MCP stdio server
@@ -149,15 +153,19 @@ async function cmdLint(args: string[]): Promise<RunResult> {
     process.stderr.write(`no KB found at ${root} — run \`kb init\` first\n`);
     return { exitCode: 1 };
   }
-  if (!args.includes('--conflicts')) {
-    process.stderr.write('kb lint: only --conflicts is implemented in the TS port (v0.3).\n');
-    return { exitCode: 1 };
+  if (args.includes('--conflicts')) {
+    const result = await detectConflicts({ kbRoot: root });
+    process.stdout.write(
+      `kb lint --conflicts: ${result.findings.length} contradiction(s) found.\n`,
+    );
+    if (result.reportPath) process.stdout.write(`Report: ${result.reportPath}\n`);
+    return { exitCode: 0 };
   }
-  const result = await detectConflicts({ kbRoot: root });
-  process.stdout.write(
-    `kb lint --conflicts: ${result.findings.length} contradiction(s) found.\n`,
-  );
-  if (result.reportPath) process.stdout.write(`Report: ${result.reportPath}\n`);
+  const pageCount = countWikiPages(root);
+  const check = pageCountCheck(pageCount);
+  const prefix = check.status === 'warn' ? 'warn: ' : '';
+  const stream = check.status === 'warn' ? process.stderr : process.stdout;
+  stream.write(`${prefix}${check.message}\n`);
   return { exitCode: 0 };
 }
 

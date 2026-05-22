@@ -8,3 +8,4 @@ export * from './contracts.ts';
 export * from './confidence.ts';
 export * from './frontmatter.ts';
 export * from './watch.ts';
+export * from './lint.ts';
